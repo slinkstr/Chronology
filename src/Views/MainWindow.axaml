@@ -1,0 +1,96 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Chronology.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="180"
+        x:Class="Chronology.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Chronology"
+        Width="500" SizeToContent="Height">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="Button.compact">
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="34" />
+        </Style>
+        <Style Selector="Menu > MenuItem > MenuItem">
+            <Setter Property="AccessText.ShowAccessKey" Value="True" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top" HorizontalAlignment="Stretch">
+            <MenuItem x:Name="FileMenu" Header="_File">
+                <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}" />
+                <MenuItem Header="Open timelog _directory" Command="{Binding OpenTimelogDirectoryCommand}" />
+                <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard" />
+            </MenuItem>
+        </Menu>
+
+        <StackPanel Margin="10" Spacing="6">
+            <Grid RowDefinitions="Auto,Auto,Auto"
+                  ColumnDefinitions="60,*,34,34"
+                  RowSpacing="6"
+                  ColumnSpacing="4">
+
+                <Label Grid.Row="0" Grid.Column="0" Content="Activity" VerticalAlignment="Center" />
+                <AutoCompleteBox Grid.Row="0" Grid.Column="1"
+                                 x:Name="ActivityField"
+                                 Text="{Binding Activity}"
+                                 ItemsSource="{Binding RecentActivities}"
+                                 MinimumPrefixLength="0" />
+                <Button Grid.Row="0" Grid.Column="2" Classes="compact"
+                        Content="&#x2190;"
+                        Command="{Binding GoBackCommand}"
+                        FontSize="14"
+                        ToolTip.Tip="Previous activity" />
+                <Button Grid.Row="0" Grid.Column="3" Classes="compact"
+                        Content="&#x2192;"
+                        Command="{Binding GoForwardCommand}"
+                        FontSize="14"
+                        ToolTip.Tip="Next activity" />
+
+                <Label Grid.Row="1" Grid.Column="0" Content="Time" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1"
+                         x:Name="TimeField"
+                         Text="{Binding TimeExpression}"
+                         GotFocus="OnTimeFieldGotFocus"
+                         LostFocus="OnTimeFieldLostFocus"
+                         FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                <Button Grid.Row="1" Grid.Column="2" Classes="compact"
+                        Content="&#x21bb;"
+                        Command="{Binding ResetCommand}"
+                        FontSize="16"
+                        ToolTip.Tip="Reset clock" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
+                           Text="{Binding Error}"
+                           Foreground="OrangeRed"
+                           FontSize="13"
+                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto">
+                <Button Grid.Column="0"
+                        Content="Log"
+                        Command="{Binding LogCommand}"
+                        HorizontalAlignment="Left"
+                        Padding="30,6" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding TotalDisplay, StringFormat='Total: {0}'}"
+                           VerticalAlignment="Center"
+                           FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                           FontSize="14" />
+            </Grid>
+        </StackPanel>
+    </DockPanel>
+</Window>
