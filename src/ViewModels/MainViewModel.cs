@@ -174,7 +174,13 @@ public partial class MainViewModel : ViewModelBase
         SaveState();
     }
 
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
+    [ObservableProperty]
+    private bool _canGoBack;
+
+    [ObservableProperty]
+    private bool _canGoForward;
+
+    [RelayCommand]
     private void GoBack()
     {
         var history = _activityHistory.Activities;
@@ -195,7 +201,7 @@ public partial class MainViewModel : ViewModelBase
         SetActivityFromCursor(history);
     }
 
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
+    [RelayCommand]
     private void GoForward()
     {
         var history = _activityHistory.Activities;
@@ -250,18 +256,11 @@ public partial class MainViewModel : ViewModelBase
         RefreshNavigationCommands();
     }
 
-    private bool CanGoBack()
-    {
-        var count = _activityHistory.Activities.Count;
-        return count > 0 && (_activityCursor == -1 || _activityCursor < count - 1);
-    }
-
-    private bool CanGoForward() => _activityCursor >= 0;
-
     private void RefreshNavigationCommands()
     {
-        GoBackCommand.NotifyCanExecuteChanged();
-        GoForwardCommand.NotifyCanExecuteChanged();
+        var count = _activityHistory.Activities.Count;
+        CanGoBack = count > 0 && (_activityCursor == -1 || _activityCursor < count - 1);
+        CanGoForward = _activityCursor >= 0;
     }
 
     private void LoadDay()

@@ -286,11 +286,11 @@ public class MainViewModelTests : IDisposable
     // Activity navigation tests
 
     [Fact]
-    public void GoBack_NoHistory_CannotExecute()
+    public void GoBack_NoHistory_CannotGoBackOrForward()
     {
         var vm = CreateViewModel();
-        Assert.False(vm.GoBackCommand.CanExecute(null));
-        Assert.False(vm.GoForwardCommand.CanExecute(null));
+        Assert.False(vm.CanGoBack);
+        Assert.False(vm.CanGoForward);
     }
 
     [Fact]
@@ -365,7 +365,7 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void GoBack_AtOldest_CannotExecute()
+    public void GoBack_AtOldest_CannotGoBack()
     {
         var vm = CreateViewModel();
         AdvanceTime(TimeSpan.FromMinutes(30));
@@ -378,7 +378,7 @@ public class MainViewModelTests : IDisposable
 
         vm.GoBackCommand.Execute(null);
         vm.GoBackCommand.Execute(null);
-        Assert.False(vm.GoBackCommand.CanExecute(null));
+        Assert.False(vm.CanGoBack);
     }
 
     [Fact]
@@ -395,7 +395,7 @@ public class MainViewModelTests : IDisposable
         Assert.Equal("First", vm.Activity);
 
         vm.Activity = "New activity";
-        Assert.False(vm.GoForwardCommand.CanExecute(null));
+        Assert.False(vm.CanGoForward);
     }
 
     // ActivityHistory reads from day files

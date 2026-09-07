@@ -21,6 +21,9 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Width" Value="34" />
         </Style>
+        <Style Selector="Button.compact.disabled">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
         <Style Selector="Menu > MenuItem > MenuItem">
             <Setter Property="AccessText.ShowAccessKey" Value="True" />
         </Style>
@@ -50,11 +53,13 @@
                 <Button Grid.Row="0" Grid.Column="2" Classes="compact"
                         Content="&#x2190;"
                         Command="{Binding GoBackCommand}"
+                        Classes.disabled="{Binding !CanGoBack}"
                         FontSize="14"
                         ToolTip.Tip="Previous activity" />
                 <Button Grid.Row="0" Grid.Column="3" Classes="compact"
                         Content="&#x2192;"
                         Command="{Binding GoForwardCommand}"
+                        Classes.disabled="{Binding !CanGoForward}"
                         FontSize="14"
                         ToolTip.Tip="Next activity" />
 
