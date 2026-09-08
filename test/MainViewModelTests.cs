@@ -1,5 +1,6 @@
 using Chronology.Models;
 using Chronology.Services;
+using Chronology.Services.TimeStores;
 using Chronology.ViewModels;
 using Xunit;
 
@@ -29,14 +30,13 @@ public class MainViewModelTests : IDisposable
         var store = new PlaintextDayStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-        var formatter = new PlaintextEntryFormatter();
 
         if (initialClock != default)
         {
             stateStore.Save(new AppState { Clock = initialClock });
         }
 
-        return new MainViewModel(store, stateStore, history, formatter, () => _virtualNow, _tempDir);
+        return new MainViewModel(store, stateStore, history, () => _virtualNow);
     }
 
     private void AdvanceTime(TimeSpan delta) => _virtualNow += delta;
@@ -180,9 +180,8 @@ public class MainViewModelTests : IDisposable
         var store = new PlaintextDayStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-        var formatter = new PlaintextEntryFormatter();
 
-        var vm = new MainViewModel(store, stateStore, history, formatter, () => _virtualNow, _tempDir);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
         AdvanceTime(TimeSpan.FromMinutes(30));
         vm.Tick();
 
@@ -257,14 +256,13 @@ public class MainViewModelTests : IDisposable
         var store = new PlaintextDayStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-        var formatter = new PlaintextEntryFormatter();
 
-        var vm1 = new MainViewModel(store, stateStore, history, formatter, () => _virtualNow, _tempDir);
+        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow);
         AdvanceTime(TimeSpan.FromMinutes(30));
         vm1.Tick();
         vm1.SaveState();
 
-        var vm2 = new MainViewModel(store, stateStore, history, formatter, () => _virtualNow, _tempDir);
+        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow);
         Assert.Equal(TimeSpan.FromMinutes(30), vm2.CurrentClock);
     }
 
@@ -481,9 +479,8 @@ public class MainViewModelTests : IDisposable
         ]);
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-        var formatter = new PlaintextEntryFormatter();
 
-        var vm = new MainViewModel(store, stateStore, history, formatter, () => _virtualNow, _tempDir);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
 
         var text = vm.GetTimelogText();
         Assert.Contains("Fix bug", text);
@@ -491,7 +488,7 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void GetTimelogText_NoFile_StillFormatsFromEntries()
+    public void GetTimelogText_AfterLog_ReturnsFormattedEntries()
     {
         var vm = CreateViewModel();
         AdvanceTime(TimeSpan.FromMinutes(30));

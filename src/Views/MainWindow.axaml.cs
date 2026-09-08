@@ -89,4 +89,9 @@ public partial class MainWindow : Window
             await clipboard.SetTextAsync(text);
         }
     }
+
+    private void OnExit(object? sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using Chronology.Models;
 using Chronology.Services;
+using Chronology.Services.TimeStores;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -12,9 +12,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ITimeLogStore _store;
     private readonly AppStateStore _stateStore;
     private readonly ActivityHistory _activityHistory;
-    private readonly IEntryFormatter _formatter;
     private readonly Func<DateTime> _now;
-    private readonly string _dataDirectory;
 
     private TimeSpan _accumulatedClock;
     private DateTime _lastTickAt;
@@ -50,25 +48,21 @@ public partial class MainViewModel : ViewModelBase
         : this(
             new PlaintextDayStore(dataDirectory),
             new AppStateStore(dataDirectory),
-            new PlaintextEntryFormatter(),
-            () => DateTime.Now,
-            dataDirectory)
+            () => DateTime.Now)
     {
     }
 
-    public MainViewModel(ITimeLogStore store, AppStateStore stateStore, IEntryFormatter formatter, Func<DateTime> now, string dataDirectory)
-        : this(store, stateStore, new ActivityHistory(store, () => DateOnly.FromDateTime(now())), formatter, now, dataDirectory)
+    public MainViewModel(ITimeLogStore store, AppStateStore stateStore, Func<DateTime> now)
+        : this(store, stateStore, new ActivityHistory(store, () => DateOnly.FromDateTime(now())), now)
     {
     }
 
-    public MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory activityHistory, IEntryFormatter formatter, Func<DateTime> now, string dataDirectory)
+    public MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory activityHistory, Func<DateTime> now)
     {
         _store = store;
         _stateStore = stateStore;
         _activityHistory = activityHistory;
-        _formatter = formatter;
         _now = now;
-        _dataDirectory = dataDirectory;
         _currentDate = DateOnly.FromDateTime(_now());
         _lastTickAt = _now();
         _lastStateSave = _now();
@@ -225,28 +219,21 @@ public partial class MainViewModel : ViewModelBase
         RefreshNavigationCommands();
     }
 
+    public bool HasFileBackend => _store is IFileBackedStore;
+
     [RelayCommand]
     private void OpenCurrentLogFile()
     {
-        var path = Path.Combine(_dataDirectory, $"{_currentDate:yyyy-MM-dd}.txt");
-        if (File.Exists(path))
-        {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        }
-        else
-        {
-            OpenTimelogDirectory();
-        }
+        (_store as IFileBackedStore)?.OpenCurrentDayFile(_currentDate);
     }
 
     [RelayCommand]
     private void OpenTimelogDirectory()
     {
-        Directory.CreateDirectory(_dataDirectory);
-        Process.Start(new ProcessStartInfo(_dataDirectory) { UseShellExecute = true });
+        (_store as IFileBackedStore)?.OpenDataDirectory();
     }
 
-    public string GetTimelogText() => _formatter.Format(_currentDate, Entries);
+    public string GetTimelogText() => (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
 
     private void SetActivityFromCursor(IReadOnlyList<string> history)
     {

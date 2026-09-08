@@ -32,9 +32,14 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top" HorizontalAlignment="Stretch">
             <MenuItem x:Name="FileMenu" Header="_File">
-                <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}" />
-                <MenuItem Header="Open timelog _directory" Command="{Binding OpenTimelogDirectoryCommand}" />
-                <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard" />
+                <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}"
+                          IsVisible="{Binding HasFileBackend}" />
+                <MenuItem Header="Open timelog _directory" Command="{Binding OpenTimelogDirectoryCommand}"
+                          IsVisible="{Binding HasFileBackend}" />
+                <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard"
+                          IsVisible="{Binding HasFileBackend}" />
+                <Separator IsVisible="{Binding HasFileBackend}" />
+                <MenuItem Header="E_xit" Click="OnExit" />
             </MenuItem>
         </Menu>
 
