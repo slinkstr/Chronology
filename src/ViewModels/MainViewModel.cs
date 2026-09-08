@@ -91,6 +91,8 @@ public partial class MainViewModel : ViewModelBase
 
     public void Tick()
     {
+        CheckDayRollover();
+
         if (!_isTimeFieldFocused)
         {
             RefreshTimeDisplay();
@@ -102,6 +104,37 @@ public partial class MainViewModel : ViewModelBase
             SaveState();
             _lastStateSave = _now();
         }
+    }
+
+    private void CheckDayRollover()
+    {
+        var today = DateOnly.FromDateTime(_now());
+        if (today <= _currentDate)
+        {
+            return;
+        }
+
+        var elapsed = CurrentClock;
+        if (elapsed > TimeSpan.Zero)
+        {
+            var activity = string.IsNullOrWhiteSpace(Activity) ? "(unattributed)" : Activity.Trim();
+            Entries.Add(new TimeEntry(TimeOnly.FromDateTime(_now()), activity, elapsed));
+            _store.Save(_currentDate, Entries);
+        }
+
+        _accumulatedClock = TimeSpan.Zero;
+        _lastTickAt = _now();
+        _currentDate = today;
+
+        LoadDay();
+        _activityHistory.Reload();
+        RefreshRecentActivities();
+        RefreshTimeDisplay();
+        UpdateTotalDisplay();
+        _activityCursor = -1;
+        RefreshNavigationCommands();
+        SaveState();
+        _lastStateSave = _now();
     }
 
     public void OnTimeFieldGotFocus() => _isTimeFieldFocused = true;

@@ -501,4 +501,123 @@ public class MainViewModelTests : IDisposable
         Assert.Contains("Test task", text);
         Assert.Contains("# Chronology log - 2026-09-04", text);
     }
+
+    // Day rollover
+
+    [Fact]
+    public void Tick_DayRollover_FlushesPendingClockToPreviousDay()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(90));
+        vm.Tick();
+
+        var loaded = store.Load(new DateOnly(2026, 9, 4)).ToList();
+        var rollover = Assert.Single(loaded);
+        Assert.Equal("(unattributed)", rollover.Activity);
+        Assert.Equal(TimeSpan.FromMinutes(90), rollover.Duration);
+    }
+
+    [Fact]
+    public void Tick_DayRollover_UsesTypedActivityName()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        vm.Activity = "Working late";
+        AdvanceTime(TimeSpan.FromMinutes(60));
+        vm.Tick();
+
+        var loaded = store.Load(new DateOnly(2026, 9, 4)).ToList();
+        var rollover = Assert.Single(loaded);
+        Assert.Equal("Working late", rollover.Activity);
+    }
+
+    [Fact]
+    public void Tick_DayRollover_ResetsClock()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(90));
+        vm.Tick();
+
+        Assert.Equal(TimeSpan.Zero, vm.CurrentClock);
+    }
+
+    [Fact]
+    public void Tick_DayRollover_LoadsNewDayEntries()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        store.Save(new DateOnly(2026, 9, 5), [
+            new TimeEntry(new TimeOnly(9, 0), "New day task", TimeSpan.FromMinutes(30)),
+        ]);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(90));
+        vm.Tick();
+
+        Assert.Single(vm.Entries);
+        Assert.Equal("New day task", vm.Entries[0].Activity);
+    }
+
+    [Fact]
+    public void Tick_DayRollover_ZeroClock_NoEntryAdded()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        _virtualNow = new DateTime(2026, 9, 5, 0, 0, 0);
+        vm.ResetCommand.Execute(null);
+        vm.Tick();
+
+        Assert.Empty(store.Load(new DateOnly(2026, 9, 4)).ToList());
+    }
+
+    [Fact]
+    public void Tick_DayRollover_ReloadsActivityHistory()
+    {
+        var store = new PlaintextDayStore(_tempDir);
+        store.Save(new DateOnly(2026, 9, 4), [
+            new TimeEntry(new TimeOnly(9, 0), "Old task", TimeSpan.FromMinutes(30)),
+        ]);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        Assert.Contains("Old task", vm.RecentActivities);
+
+        AdvanceTime(TimeSpan.FromMinutes(90));
+        vm.Tick();
+
+        Assert.Contains("(unattributed)", vm.RecentActivities);
+    }
+
+    [Fact]
+    public void Tick_SameDay_NoRollover()
+    {
+        var vm = CreateViewModel();
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm.Tick();
+
+        Assert.Empty(vm.Entries);
+        Assert.Equal(TimeSpan.FromMinutes(30), vm.CurrentClock);
+    }
 }

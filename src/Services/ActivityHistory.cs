@@ -42,6 +42,11 @@ public class ActivityHistory
         }
     }
 
+    public void Reload()
+    {
+        Load();
+    }
+
     public void AddActivity(string activity)
     {
         var trimmed = activity.Trim();
