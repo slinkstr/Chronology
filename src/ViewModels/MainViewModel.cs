@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using Chronology.Models;
 using Chronology.Services;
-using Chronology.Services.TimeStores;
+using Chronology.Services.TimeLogStores;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -9,18 +9,18 @@ namespace Chronology.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    private readonly ITimeLogStore _store;
-    private readonly AppStateStore _stateStore;
+    private readonly ITimeLogStore   _store;
+    private readonly AppStateStore   _stateStore;
     private readonly ActivityHistory _activityHistory;
-    private readonly Func<DateTime> _now;
+    private readonly Func<DateTime>  _now;
 
     private TimeSpan _accumulatedClock;
     private DateTime _lastTickAt;
     private DateTime _lastStateSave;
     private DateOnly _currentDate;
     private bool _isTimeFieldFocused;
-    private int _activityCursor = -1;
     private bool _isNavigating;
+    private int _activityCursor = -1;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -46,7 +46,7 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel(string dataDirectory)
         : this(
-            new PlaintextDayStore(dataDirectory),
+            new PlaintextTimeLogStore(dataDirectory),
             new AppStateStore(dataDirectory),
             () => DateTime.Now)
     {
@@ -59,13 +59,13 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory activityHistory, Func<DateTime> now)
     {
-        _store = store;
-        _stateStore = stateStore;
+        _store           = store;
+        _stateStore      = stateStore;
         _activityHistory = activityHistory;
-        _now = now;
-        _currentDate = DateOnly.FromDateTime(_now());
-        _lastTickAt = _now();
-        _lastStateSave = _now();
+        _now             = now;
+        _currentDate     = DateOnly.FromDateTime(_now());
+        _lastTickAt      = _now();
+        _lastStateSave   = _now();
 
         LoadDay();
         LoadState();

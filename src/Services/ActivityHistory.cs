@@ -4,9 +4,9 @@ public class ActivityHistory
 {
     public const int MaxActivities = 50;
 
-    private readonly ITimeLogStore _store;
+    private readonly ITimeLogStore  _store;
     private readonly Func<DateOnly> _today;
-    private readonly List<string> _activities = [];
+    private readonly List<string>   _activities = [];
 
     public ActivityHistory(ITimeLogStore store, Func<DateOnly> today)
     {

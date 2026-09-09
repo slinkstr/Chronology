@@ -1,6 +1,6 @@
 using Chronology.Models;
 using Chronology.Services;
-using Chronology.Services.TimeStores;
+using Chronology.Services.TimeLogStores;
 using Chronology.ViewModels;
 using Xunit;
 
@@ -27,7 +27,21 @@ public class MainViewModelTests : IDisposable
 
     private MainViewModel CreateViewModel(TimeSpan initialClock = default)
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new DummyTimeLogStore();
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        if (initialClock != default)
+        {
+            stateStore.Save(new AppState { Clock = initialClock });
+        }
+
+        return new MainViewModel(store, stateStore, history, () => _virtualNow);
+    }
+
+    private MainViewModel CreateViewModelWithRealStore(TimeSpan initialClock = default)
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
@@ -40,6 +54,8 @@ public class MainViewModelTests : IDisposable
     }
 
     private void AdvanceTime(TimeSpan delta) => _virtualNow += delta;
+
+    // Unit tests (DummyTimeLogStore)
 
     [Fact]
     public void Constructor_NoState_ClockStartsAtZero()
@@ -175,25 +191,6 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Log_PersistsEntryToStore()
-    {
-        var store = new PlaintextDayStore(_tempDir);
-        var stateStore = new AppStateStore(_tempDir);
-        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
-        AdvanceTime(TimeSpan.FromMinutes(30));
-        vm.Tick();
-
-        vm.Activity = "Fix bug";
-        vm.LogCommand.Execute(null);
-
-        var loaded = store.Load(DateOnly.FromDateTime(_virtualNow)).ToList();
-        Assert.Single(loaded);
-        Assert.Equal("Fix bug", loaded[0].Activity);
-    }
-
-    [Fact]
     public void Log_AddsActivityToRecentActivities()
     {
         var vm = CreateViewModel();
@@ -251,22 +248,6 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void StatePersistence_ClockRestoredOnReopen()
-    {
-        var store = new PlaintextDayStore(_tempDir);
-        var stateStore = new AppStateStore(_tempDir);
-        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
-
-        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow);
-        AdvanceTime(TimeSpan.FromMinutes(30));
-        vm1.Tick();
-        vm1.SaveState();
-
-        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow);
-        Assert.Equal(TimeSpan.FromMinutes(30), vm2.CurrentClock);
-    }
-
-    [Fact]
     public void OnTimeFieldLostFocus_ResumesTicking()
     {
         var vm = CreateViewModel();
@@ -280,8 +261,6 @@ public class MainViewModelTests : IDisposable
         vm.OnTimeFieldLostFocus();
         Assert.Equal("0:08", vm.TimeExpression);
     }
-
-    // Activity navigation tests
 
     [Fact]
     public void GoBack_NoHistory_CannotGoBackOrForward()
@@ -396,12 +375,58 @@ public class MainViewModelTests : IDisposable
         Assert.False(vm.CanGoForward);
     }
 
-    // ActivityHistory reads from day files
+    [Fact]
+    public void Tick_SameDay_NoRollover()
+    {
+        var vm = CreateViewModel();
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm.Tick();
+
+        Assert.Empty(vm.Entries);
+        Assert.Equal(TimeSpan.FromMinutes(30), vm.CurrentClock);
+    }
+
+    // Integration tests (PlaintextTimeLogStore)
+
+    [Fact]
+    public void Log_PersistsEntryToStore()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm.Tick();
+
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        var loaded = store.Load(DateOnly.FromDateTime(_virtualNow)).ToList();
+        Assert.Single(loaded);
+        Assert.Equal("Fix bug", loaded[0].Activity);
+    }
+
+    [Fact]
+    public void StatePersistence_ClockRestoredOnReopen()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm1.Tick();
+        vm1.SaveState();
+
+        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        Assert.Equal(TimeSpan.FromMinutes(30), vm2.CurrentClock);
+    }
 
     [Fact]
     public void ActivityHistory_LoadsFromDayFiles()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 3), [
             new TimeEntry(new TimeOnly(9, 0), "Old task", TimeSpan.FromMinutes(30)),
             new TimeEntry(new TimeOnly(10, 0), "Another task", TimeSpan.FromMinutes(15)),
@@ -412,7 +437,6 @@ public class MainViewModelTests : IDisposable
 
         var history = new ActivityHistory(store, () => new DateOnly(2026, 9, 4));
 
-        // Most recent day first
         Assert.Equal("Recent task", history.Activities[0]);
         Assert.Equal("Old task", history.Activities[1]);
         Assert.Equal("Another task", history.Activities[2]);
@@ -421,7 +445,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void ActivityHistory_DeduplicatesAcrossDays()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 3), [
             new TimeEntry(new TimeOnly(9, 0), "Same task", TimeSpan.FromMinutes(30)),
         ]);
@@ -438,7 +462,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void ActivityHistory_CapsAt50()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         var entries = new List<TimeEntry>();
         for (var i = 0; i < 60; i++)
         {
@@ -454,7 +478,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void ActivityHistory_IgnoresFutureDates()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 5), [
             new TimeEntry(new TimeOnly(9, 0), "Future task", TimeSpan.FromMinutes(30)),
         ]);
@@ -468,12 +492,10 @@ public class MainViewModelTests : IDisposable
         Assert.Contains("Today task", history.Activities);
     }
 
-    // GetTimelogText
-
     [Fact]
     public void GetTimelogText_ReturnsFormattedEntries()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 4), [
             new TimeEntry(new TimeOnly(9, 0), "Fix bug", TimeSpan.FromMinutes(30)),
         ]);
@@ -490,7 +512,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void GetTimelogText_AfterLog_ReturnsFormattedEntries()
     {
-        var vm = CreateViewModel();
+        var vm = CreateViewModelWithRealStore();
         AdvanceTime(TimeSpan.FromMinutes(30));
         vm.Tick();
 
@@ -502,12 +524,10 @@ public class MainViewModelTests : IDisposable
         Assert.Contains("# Chronology log - 2026-09-04", text);
     }
 
-    // Day rollover
-
     [Fact]
     public void Tick_DayRollover_FlushesPendingClockToPreviousDay()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
@@ -525,7 +545,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void Tick_DayRollover_UsesTypedActivityName()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
@@ -543,7 +563,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void Tick_DayRollover_ResetsClock()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
@@ -558,7 +578,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void Tick_DayRollover_LoadsNewDayEntries()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 5), [
             new TimeEntry(new TimeOnly(9, 0), "New day task", TimeSpan.FromMinutes(30)),
         ]);
@@ -577,7 +597,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void Tick_DayRollover_ZeroClock_NoEntryAdded()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         var stateStore = new AppStateStore(_tempDir);
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
@@ -593,7 +613,7 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void Tick_DayRollover_ReloadsActivityHistory()
     {
-        var store = new PlaintextDayStore(_tempDir);
+        var store = new PlaintextTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 4), [
             new TimeEntry(new TimeOnly(9, 0), "Old task", TimeSpan.FromMinutes(30)),
         ]);
@@ -608,16 +628,5 @@ public class MainViewModelTests : IDisposable
         vm.Tick();
 
         Assert.Contains("(unattributed)", vm.RecentActivities);
-    }
-
-    [Fact]
-    public void Tick_SameDay_NoRollover()
-    {
-        var vm = CreateViewModel();
-        AdvanceTime(TimeSpan.FromMinutes(30));
-        vm.Tick();
-
-        Assert.Empty(vm.Entries);
-        Assert.Equal(TimeSpan.FromMinutes(30), vm.CurrentClock);
     }
 }

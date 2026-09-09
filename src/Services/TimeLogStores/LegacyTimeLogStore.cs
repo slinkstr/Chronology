@@ -3,20 +3,20 @@ using System.Globalization;
 using System.Text;
 using Chronology.Models;
 
-namespace Chronology.Services.TimeStores;
+namespace Chronology.Services.TimeLogStores;
 
-public class LegacyDayStore : IFileBackedStore
+public class LegacyTimeLogStore : IFileBackedStore
 {
-    private const int TimeWidth = 5;
-    private const int ProjectWidth = 20;
-    private const int ActivityWidth = 70;
-    private const string Gap = "  ";
-    private const string Gap2 = "   ";
-    private const int IndentWidth = 30;
+    private const int    TimeWidth     = 5;
+    private const int    ProjectWidth  = 20;
+    private const int    ActivityWidth = 70;
+    private const string Gap           = "  ";
+    private const string Gap2          = "   ";
+    private const int    IndentWidth   = 30;
 
     private readonly string _dataDirectory;
 
-    public LegacyDayStore(string dataDirectory)
+    public LegacyTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;
     }
@@ -171,7 +171,7 @@ public class LegacyDayStore : IFileBackedStore
         var first = true;
         do
         {
-            var chunk = remaining.Length <= ActivityWidth ? remaining : remaining[..ActivityWidth];
+            var chunk = TakeChunk(remaining, ActivityWidth);
             if (first)
             {
                 sb.AppendLine($"{prefix}{chunk}");
@@ -181,7 +181,7 @@ public class LegacyDayStore : IFileBackedStore
             {
                 sb.AppendLine($"{indent}{chunk}");
             }
-            remaining = remaining.Length <= ActivityWidth ? "" : remaining[ActivityWidth..];
+            remaining = remaining[chunk.Length..].TrimStart();
         }
         while (remaining.Length > 0);
 
@@ -189,6 +189,17 @@ public class LegacyDayStore : IFileBackedStore
         {
             sb.AppendLine(prefix);
         }
+    }
+
+    private static string TakeChunk(string text, int width)
+    {
+        if (text.Length <= width)
+        {
+            return text;
+        }
+
+        var breakAt = text.LastIndexOf(' ', width - 1, width);
+        return breakAt > 0 ? text[..breakAt] : text[..width];
     }
 
     private static bool TryParseTimeField(string field, out double hours)

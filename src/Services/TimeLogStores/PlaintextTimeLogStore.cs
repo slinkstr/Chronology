@@ -3,13 +3,13 @@ using System.Globalization;
 using System.Text;
 using Chronology.Models;
 
-namespace Chronology.Services.TimeStores;
+namespace Chronology.Services.TimeLogStores;
 
-public class PlaintextDayStore : IFileBackedStore
+public class PlaintextTimeLogStore : IFileBackedStore
 {
     private readonly string _dataDirectory;
 
-    public PlaintextDayStore(string dataDirectory)
+    public PlaintextTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;
     }
@@ -36,8 +36,8 @@ public class PlaintextDayStore : IFileBackedStore
             }
 
             var timestampStr = parts[0].Trim();
-            var activity = parts[1].Trim();
-            var durationStr = parts[2].Trim();
+            var activity     = parts[1].Trim();
+            var durationStr  = parts[2].Trim();
 
             if (!TimeOnly.TryParse(timestampStr, CultureInfo.InvariantCulture, out var timestamp))
             {

@@ -1,15 +1,15 @@
 using Chronology.Models;
 using Chronology.Services;
-using Chronology.Services.TimeStores;
+using Chronology.Services.TimeLogStores;
 using Xunit;
 
 namespace Chronology.Tests;
 
-public class LegacyDayStoreTests : IDisposable
+public class LegacyTimeLogStoreTests : IDisposable
 {
     private readonly string _tempDir;
 
-    public LegacyDayStoreTests()
+    public LegacyTimeLogStoreTests()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "ChronologyTests_" + Guid.NewGuid());
     }
@@ -25,7 +25,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void Save_UsesTimeLogFilenameScheme()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var date = new DateOnly(2026, 9, 4);
         store.Save(date, [new TimeEntry(new TimeOnly(9, 0), "Code review", TimeSpan.FromMinutes(30))]);
 
@@ -36,7 +36,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void SaveLoad_RoundTrip_PreservesEntries()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var date = new DateOnly(2026, 9, 4);
         var entries = new List<TimeEntry>
         {
@@ -61,7 +61,7 @@ public class LegacyDayStoreTests : IDisposable
         File.WriteAllText(Path.Combine(_tempDir, "TimeLog.20260904.txt"), "");
         File.WriteAllText(Path.Combine(_tempDir, "TimeLog.20260905.txt"), "");
 
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var dates = store.GetAvailableDates().OrderBy(d => d).ToList();
 
         Assert.Equal(2, dates.Count);
@@ -77,7 +77,7 @@ public class LegacyDayStoreTests : IDisposable
         File.WriteAllText(Path.Combine(_tempDir, "2026-09-04.txt"), "");
         File.WriteAllText(Path.Combine(_tempDir, "TimeLog.notadate.txt"), "");
 
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var dates = store.GetAvailableDates().ToList();
 
         Assert.Single(dates);
@@ -87,7 +87,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void Load_NonexistentFile_ReturnsEmpty()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         Assert.Empty(store.Load(new DateOnly(2026, 9, 4)));
     }
 
@@ -96,55 +96,36 @@ public class LegacyDayStoreTests : IDisposable
     {
         var entries = new List<TimeEntry>
         {
-            new(new TimeOnly(9, 0), "DEMO-123 code review.", TimeSpan.FromHours(0.09)),
-            new(new TimeOnly(9, 0), "DEMO-4111 code review.", TimeSpan.FromHours(0.19)),
-            new(new TimeOnly(9, 0), "DEMO-1111 code review.", TimeSpan.FromHours(0.34)),
-            new(new TimeOnly(9, 0), "DEMO-2111 code review.", TimeSpan.FromHours(0.04)),
-            new(new TimeOnly(9, 0), "DEMO-3111 code review.", TimeSpan.FromHours(0.12)),
-            new(new TimeOnly(9, 0), "DEMO-1111 code review.", TimeSpan.FromHours(0.09)),
-            new(new TimeOnly(9, 0), "DEMO-2111 code review.", TimeSpan.FromHours(0.09)),
-            new(new TimeOnly(9, 0), "Alice meeting.", TimeSpan.FromHours(0.39)),
-            new(new TimeOnly(9, 0), "DEMO-2111 code review.", TimeSpan.FromHours(0.14)),
-            new(new TimeOnly(9, 0), "DEMO-3111 code review.", TimeSpan.FromHours(0.77)),
-            new(new TimeOnly(9, 0), "DEMO-3111 code review.", TimeSpan.FromHours(0.29)),
-            new(new TimeOnly(9, 0), "DEMO-7111 code review.", TimeSpan.FromHours(0.54)),
-            new(new TimeOnly(9, 0), "DEMO-3111 code review.", TimeSpan.FromHours(0.42)),
+            new(new TimeOnly(9, 0), "DEMO-123 code review.", TimeSpan.FromHours(0.15)),
+            new(new TimeOnly(9, 0), "Alice meeting.", TimeSpan.FromHours(0.65)),
+            new(new TimeOnly(9, 0), "DEMO-2111 code review.", TimeSpan.FromHours(0.24)),
             new(new TimeOnly(9, 0), "Bob meeting.", TimeSpan.FromHours(0.50)),
-            new(new TimeOnly(9, 0), "Break.", TimeSpan.FromHours(0.50)),
-            new(new TimeOnly(9, 0), "Server outage.", TimeSpan.FromHours(0.80)),
-            new(new TimeOnly(9, 0), "DEMO-3111 code review.", TimeSpan.FromHours(0.20)),
-            new(new TimeOnly(9, 0), "DEMO-7111 code review.", TimeSpan.FromHours(0.17)),
-            new(new TimeOnly(9, 0), "DEMO-1111.", TimeSpan.FromHours(1.55)),
+            new(new TimeOnly(9, 0), "Break.", TimeSpan.FromHours(1.00)),
+            new(new TimeOnly(9, 0), "Server outage.", TimeSpan.FromHours(0.82)),
+            new(new TimeOnly(9, 0), "DEMO-3111 debugging.", TimeSpan.FromHours(1.87)),
+            new(new TimeOnly(9, 0), "DEMO-7111 planning.", TimeSpan.FromHours(0.24)),
+            new(new TimeOnly(9, 0), "DEMO-1111 fixing that one really annoying bug where you input a time but instead of adding it subtracts.", TimeSpan.FromHours(0.27)),
         };
 
-        var store = new LegacyDayStore(_tempDir);
-        var output = store.Format(new DateOnly(2026, 9, 2), entries);
+        var store = new LegacyTimeLogStore(_tempDir);
+        var output = store.Format(new DateOnly(2026, 9, 8), entries);
 
         var expected = string.Join(Environment.NewLine, new[]
         {
-            "Time   Project                Activity Description (2026-09-02)",
+            "Time   Project                Activity Description (2026-09-08)",
             "-----  --------------------   ----------------------------------------------------------------------",
-            " 0.09  [GENERAL]              DEMO-123 code review.",
-            " 0.19  [GENERAL]              DEMO-4111 code review.",
-            " 0.34  [GENERAL]              DEMO-1111 code review.",
-            " 0.04  [GENERAL]              DEMO-2111 code review.",
-            " 0.12  [GENERAL]              DEMO-3111 code review.",
-            " 0.09  [GENERAL]              DEMO-1111 code review.",
-            " 0.09  [GENERAL]              DEMO-2111 code review.",
-            " 0.39  [GENERAL]              Alice meeting.",
-            " 0.14  [GENERAL]              DEMO-2111 code review.",
-            " 0.77  [GENERAL]              DEMO-3111 code review.",
-            " 0.29  [GENERAL]              DEMO-3111 code review.",
-            " 0.54  [GENERAL]              DEMO-7111 code review.",
-            " 0.42  [GENERAL]              DEMO-3111 code review.",
+            " 0.15  [GENERAL]              DEMO-123 code review.",
+            " 0.65  [GENERAL]              Alice meeting.",
+            " 0.24  [GENERAL]              DEMO-2111 code review.",
             " 0.50  [GENERAL]              Bob meeting.",
-            " 0.50  [GENERAL]              Break.",
-            " 0.80  [GENERAL]              Server outage.",
-            " 0.20  [GENERAL]              DEMO-3111 code review.",
-            " 0.17  [GENERAL]              DEMO-7111 code review.",
-            " 1.55  [GENERAL]              DEMO-1111.",
+            " 1.00  [GENERAL]              Break.",
+            " 0.82  [GENERAL]              Server outage.",
+            " 1.87  [GENERAL]              DEMO-3111 debugging.",
+            " 0.24  [GENERAL]              DEMO-7111 planning.",
+            " 0.27  [GENERAL]              DEMO-1111 fixing that one really annoying bug where you input a time",
+            "                              but instead of adding it subtracts.",
             "-----  --------------------   ----------------------------------------------------------------------",
-            " 7.23  *TOTAL                 Total time spent on work related activities.",
+            " 5.74  *TOTAL                 Total time spent on work related activities.",
             "-----  --------------------   ----------------------------------------------------------------------",
         }) + Environment.NewLine;
 
@@ -160,7 +141,7 @@ public class LegacyDayStoreTests : IDisposable
             new(new TimeOnly(9, 0), longActivity, TimeSpan.FromHours(1.00)),
         };
 
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var output = store.Format(new DateOnly(2026, 9, 2), entries);
         var lines = output.Split(Environment.NewLine);
 
@@ -172,7 +153,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void Format_SeparatorLine_Is100Chars()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var output = store.Format(new DateOnly(2026, 9, 2), []);
         var lines = output.Split(Environment.NewLine);
 
@@ -183,7 +164,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void Contents_NoFile_ReturnsFormattedEmpty()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         var contents = store.Contents(new DateOnly(2026, 9, 4));
 
         Assert.Contains("Activity Description (2026-09-04)", contents);
@@ -193,7 +174,7 @@ public class LegacyDayStoreTests : IDisposable
     [Fact]
     public void Contents_AfterSave_ReturnsFileContents()
     {
-        var store = new LegacyDayStore(_tempDir);
+        var store = new LegacyTimeLogStore(_tempDir);
         store.Save(new DateOnly(2026, 9, 4), [
             new TimeEntry(new TimeOnly(9, 0), "Code review", TimeSpan.FromMinutes(30)),
         ]);
