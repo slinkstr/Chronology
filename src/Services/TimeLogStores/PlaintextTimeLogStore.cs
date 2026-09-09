@@ -13,6 +13,8 @@ public class PlaintextTimeLogStore : IFileBackedStore
 
     private readonly string _dataDirectory;
 
+    public TimeSpan Precision => TimeSpan.FromMinutes(1);
+
     public PlaintextTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;

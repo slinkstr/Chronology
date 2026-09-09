@@ -154,11 +154,11 @@ public partial class MainViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(TimeExpression))
         {
-            valueToLog = elapsed;
+            valueToLog = Quantize(elapsed, _store.Precision);
         }
         else if (TimeExpression.Trim() == FormatHMM(elapsed))
         {
-            valueToLog = elapsed;
+            valueToLog = Quantize(elapsed, _store.Precision);
         }
         else
         {
@@ -335,4 +335,13 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private static string FormatHMM(TimeSpan ts) => $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
+
+    private static TimeSpan Quantize(TimeSpan ts, TimeSpan precision)
+    {
+        if (precision == TimeSpan.Zero)
+        {
+            return ts;
+        }
+        return TimeSpan.FromTicks(ts.Ticks - ts.Ticks % precision.Ticks);
+    }
 }

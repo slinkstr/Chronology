@@ -16,6 +16,8 @@ public class LegacyTimeLogStore : IFileBackedStore
 
     private readonly string _dataDirectory;
 
+    public TimeSpan Precision => TimeSpan.FromHours(0.01);
+
     public LegacyTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;

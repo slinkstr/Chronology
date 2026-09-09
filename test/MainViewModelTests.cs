@@ -105,6 +105,35 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Log_EmptyExpression_QuantizesToWholeMinutes_KeepsRemainder()
+    {
+        var vm = CreateViewModelWithRealStore();
+        AdvanceTime(TimeSpan.FromMinutes(37) + TimeSpan.FromSeconds(30));
+        vm.Tick();
+
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        Assert.Equal(TimeSpan.FromMinutes(37), vm.Entries[0].Duration);
+        Assert.Equal(TimeSpan.FromSeconds(30), vm.CurrentClock);
+    }
+
+    [Fact]
+    public void Log_DisplayedExpression_QuantizesToWholeMinutes_KeepsRemainder()
+    {
+        var vm = CreateViewModelWithRealStore();
+        AdvanceTime(TimeSpan.FromMinutes(37) + TimeSpan.FromSeconds(30));
+        vm.Tick();
+
+        vm.Activity = "Fix bug";
+        vm.TimeExpression = "0:37";
+        vm.LogCommand.Execute(null);
+
+        Assert.Equal(TimeSpan.FromMinutes(37), vm.Entries[0].Duration);
+        Assert.Equal(TimeSpan.FromSeconds(30), vm.CurrentClock);
+    }
+
+    [Fact]
     public void Log_ExpressionLessThanElapsed_SubtractsFromClock()
     {
         var vm = CreateViewModel();
