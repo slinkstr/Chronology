@@ -13,6 +13,7 @@ public class LegacyTimeLogStore : IFileBackedStore
     private const string Gap           = "  ";
     private const string Gap2          = "   ";
     private const int    IndentWidth   = 30;
+    private const string FilePrefix = "TimeLog.";
 
     private readonly string _dataDirectory;
 
@@ -84,9 +85,10 @@ public class LegacyTimeLogStore : IFileBackedStore
         File.WriteAllText(path, Format(date, entries));
     }
 
-    private const string FilePrefix = "TimeLog.";
-
-    private string GetFilePath(DateOnly date) => Path.Combine(_dataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
+    public string GetFilePath(DateOnly date)
+    {
+        return Path.Combine(_dataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
+    }
 
     public IEnumerable<DateOnly> GetAvailableDates()
     {

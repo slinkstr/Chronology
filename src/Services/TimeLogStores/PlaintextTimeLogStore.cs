@@ -90,7 +90,9 @@ public class PlaintextTimeLogStore : IFileBackedStore
         File.WriteAllText(path, Format(date, entries));
     }
 
-    private string GetFilePath(DateOnly date) => Path.Combine(_dataDirectory, $"{date:yyyy-MM-dd}.txt");
+    public string GetFilePath(DateOnly date) {
+        return Path.Combine(_dataDirectory, $"{date:yyyy-MM-dd}.txt");
+    }
 
     public IEnumerable<DateOnly> GetAvailableDates()
     {

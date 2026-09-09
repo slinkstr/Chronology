@@ -21,6 +21,7 @@ public partial class MainViewModel : ViewModelBase
     private bool _isTimeFieldFocused;
     private bool _isNavigating;
     private int _activityCursor = -1;
+    private DateTime _lastKnownWriteTime;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -77,6 +78,7 @@ public partial class MainViewModel : ViewModelBase
         RefreshTimeDisplay();
         UpdateTotalDisplay();
         RefreshNavigationCommands();
+        InitializeFilePoll();
     }
 
     private void RaiseError(string title, string message)
@@ -117,6 +119,7 @@ public partial class MainViewModel : ViewModelBase
     public void Tick()
     {
         CheckDayRollover();
+        PollDayFile();
 
         if (!_isTimeFieldFocused)
         {
@@ -147,6 +150,7 @@ public partial class MainViewModel : ViewModelBase
             try
             {
                 _store.Save(_currentDate, Entries);
+                InitializeFilePoll();
             }
             catch (IOException ex)
             {
@@ -167,6 +171,40 @@ public partial class MainViewModel : ViewModelBase
         RefreshNavigationCommands();
         SaveState();
         _lastStateSave = _now();
+        InitializeFilePoll();
+    }
+
+    private void InitializeFilePoll()
+    {
+        _lastKnownWriteTime = GetDayFileWriteTime();
+    }
+
+    private DateTime GetDayFileWriteTime()
+    {
+        if (_store is not IFileBackedStore fileStore)
+        {
+            return DateTime.MinValue;
+        }
+        var path = fileStore.GetFilePath(_currentDate);
+        return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+    }
+
+    private void PollDayFile()
+    {
+        if (_store is not IFileBackedStore)
+        {
+            return;
+        }
+
+        var current = GetDayFileWriteTime();
+        if (current == _lastKnownWriteTime)
+        {
+            return;
+        }
+
+        _lastKnownWriteTime = current;
+        LoadDay();
+        UpdateTotalDisplay();
     }
 
     public void OnTimeFieldGotFocus() => _isTimeFieldFocused = true;
@@ -207,6 +245,7 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             _store.Save(_currentDate, Entries);
+            InitializeFilePoll();
         }
         catch (IOException ex)
         {

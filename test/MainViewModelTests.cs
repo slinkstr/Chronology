@@ -738,4 +738,71 @@ public class MainViewModelTests : IDisposable
         Assert.NotNull(errorTitle);
         Assert.Contains("Malformed", errorTitle);
     }
+
+    [Fact]
+    public void Tick_ExternalFileChange_ReloadsEntries()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
+        store.Save(new DateOnly(2026, 9, 4), [
+            new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
+        ]);
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        Assert.Single(vm.Entries);
+        Assert.Equal("Original", vm.Entries[0].Activity);
+
+        var path = Path.Combine(_tempDir, "2026-09-04.txt");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddSeconds(5));
+
+        vm.Tick();
+
+        Assert.Empty(vm.Entries);
+    }
+
+    [Fact]
+    public void Tick_OwnSaveDoesNotTriggerReload()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
+        store.Save(new DateOnly(2026, 9, 4), [
+            new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
+        ]);
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        AdvanceTime(TimeSpan.FromMinutes(15));
+
+        vm.Activity = "New task";
+        vm.LogCommand.Execute(null);
+
+        Assert.Equal(2, vm.Entries.Count);
+        Assert.Equal("New task", vm.Entries[1].Activity);
+
+        vm.Tick();
+
+        Assert.Equal(2, vm.Entries.Count);
+    }
+
+    [Fact]
+    public void Tick_NoFileChange_DoesNotReload()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
+        store.Save(new DateOnly(2026, 9, 4), [
+            new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
+        ]);
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var entriesBefore = vm.Entries.Count;
+
+        vm.Tick();
+
+        Assert.Equal(entriesBefore, vm.Entries.Count);
+    }
 }
