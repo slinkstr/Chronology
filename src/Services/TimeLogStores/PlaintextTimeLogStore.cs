@@ -28,8 +28,12 @@ public class PlaintextTimeLogStore : IFileBackedStore
             yield break;
         }
 
-        foreach (var line in File.ReadAllLines(path))
+        var lines = File.ReadAllLines(path);
+        for (var i = 0; i < lines.Length; i++)
         {
+            var line = lines[i];
+            var lineNumber = i + 1;
+
             if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
             {
                 continue;
@@ -44,25 +48,40 @@ public class PlaintextTimeLogStore : IFileBackedStore
             var parts = trimmed[1..^1].Split('|', 3);
             if (parts.Length != 3)
             {
-                continue;
+                throw new TimeLogFormatException(path, lineNumber, "expected 3 columns");
             }
 
             var timestampStr = parts[0].Trim();
             var activity     = parts[1].Trim();
             var durationStr  = parts[2].Trim();
 
-            if (!TimeOnly.TryParse(timestampStr, CultureInfo.InvariantCulture, out var timestamp))
+            if (IsSeparator(parts))
             {
                 continue;
             }
-            if (!TryParseHMM(durationStr, out var duration))
+            if (IsHeader(timestampStr))
             {
                 continue;
+            }
+
+            if (!TimeOnly.TryParse(timestampStr, CultureInfo.InvariantCulture, out var timestamp))
+            {
+                throw new TimeLogFormatException(path, lineNumber, $"invalid timestamp '{timestampStr}'");
+            }
+            if (!TryParseHMM(durationStr, out var duration))
+            {
+                throw new TimeLogFormatException(path, lineNumber, $"invalid duration '{durationStr}'");
             }
 
             yield return new TimeEntry(timestamp, activity, duration);
         }
     }
+
+    private static bool IsHeader(string firstCell) =>
+        firstCell.Equals("Time", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSeparator(string[] cells) =>
+        cells.All(c => c.Trim().All(ch => ch == '-'));
 
     public void Save(DateOnly date, IEnumerable<TimeEntry> entries)
     {

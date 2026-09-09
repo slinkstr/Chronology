@@ -39,6 +39,10 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<string> RecentActivities { get; } = [];
 
+    public event Action<string, string>? ErrorOccurred;
+
+    private readonly List<(string Title, string Message)> _pendingErrors = [];
+
     public MainViewModel()
         : this(GetDefaultDataDirectory())
     {
@@ -73,6 +77,27 @@ public partial class MainViewModel : ViewModelBase
         RefreshTimeDisplay();
         UpdateTotalDisplay();
         RefreshNavigationCommands();
+    }
+
+    private void RaiseError(string title, string message)
+    {
+        if (ErrorOccurred != null)
+        {
+            ErrorOccurred.Invoke(title, message);
+        }
+        else
+        {
+            _pendingErrors.Add((title, message));
+        }
+    }
+
+    public void FlushPendingErrors()
+    {
+        foreach (var (title, message) in _pendingErrors)
+        {
+            ErrorOccurred?.Invoke(title, message);
+        }
+        _pendingErrors.Clear();
     }
 
     partial void OnActivityChanged(string value)
@@ -119,7 +144,14 @@ public partial class MainViewModel : ViewModelBase
         {
             var activity = string.IsNullOrWhiteSpace(Activity) ? "(unattributed)" : Activity.Trim();
             Entries.Add(new TimeEntry(TimeOnly.FromDateTime(_now()), activity, elapsed));
-            _store.Save(_currentDate, Entries);
+            try
+            {
+                _store.Save(_currentDate, Entries);
+            }
+            catch (IOException ex)
+            {
+                RaiseError("File I/O error", $"Failed to save previous day: {ex.Message}");
+            }
         }
 
         _accumulatedClock = TimeSpan.Zero;
@@ -172,7 +204,14 @@ public partial class MainViewModel : ViewModelBase
 
         var entry = new TimeEntry(TimeOnly.FromDateTime(_now()), Activity.Trim(), valueToLog);
         Entries.Add(entry);
-        _store.Save(_currentDate, Entries);
+        try
+        {
+            _store.Save(_currentDate, Entries);
+        }
+        catch (IOException ex)
+        {
+            RaiseError("File I/O error", $"Failed to save day file: {ex.Message}");
+        }
 
         _accumulatedClock = valueToLog >= elapsed ? TimeSpan.Zero : elapsed - valueToLog;
         _lastTickAt = _now();
@@ -286,17 +325,41 @@ public partial class MainViewModel : ViewModelBase
     private void LoadDay()
     {
         Entries.Clear();
-        foreach (var entry in _store.Load(_currentDate))
+        try
         {
-            Entries.Add(entry);
+            foreach (var entry in _store.Load(_currentDate))
+            {
+                Entries.Add(entry);
+            }
+        }
+        catch (TimeLogFormatException ex)
+        {
+            Entries.Clear();
+            RaiseError("Malformed day file", ex.Message);
+        }
+        catch (IOException ex)
+        {
+            Entries.Clear();
+            RaiseError("File I/O error", $"Failed to read day file: {ex.Message}");
         }
     }
 
     private void LoadState()
     {
-        var state = _stateStore.Load();
-        _accumulatedClock = state.Clock;
-        Activity = state.Activity;
+        try
+        {
+            var state = _stateStore.Load();
+            _accumulatedClock = state.Clock;
+            Activity = state.Activity;
+        }
+        catch (IOException ex)
+        {
+            RaiseError("File I/O error", $"Failed to read state: {ex.Message}");
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            RaiseError("Corrupt state file", $"Failed to parse state.json: {ex.Message}");
+        }
     }
 
     private void RefreshRecentActivities()
@@ -331,7 +394,14 @@ public partial class MainViewModel : ViewModelBase
             Clock = CurrentClock,
             Activity = Activity,
         };
-        _stateStore.Save(state);
+        try
+        {
+            _stateStore.Save(state);
+        }
+        catch (IOException ex)
+        {
+            RaiseError("File I/O error", $"Failed to save state: {ex.Message}");
+        }
     }
 
     private static string FormatHMM(TimeSpan ts) => $"{(int)ts.TotalHours}:{ts.Minutes:D2}";

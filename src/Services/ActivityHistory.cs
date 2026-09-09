@@ -1,3 +1,5 @@
+using Chronology.Models;
+
 namespace Chronology.Services;
 
 public class ActivityHistory
@@ -21,13 +23,36 @@ public class ActivityHistory
     {
         _activities.Clear();
         var today = _today();
-        var dates = _store.GetAvailableDates()
-            .Where(d => d <= today)
-            .OrderByDescending(d => d);
+        IEnumerable<DateOnly> dates;
+        try
+        {
+            dates = _store.GetAvailableDates()
+                .Where(d => d <= today)
+                .OrderByDescending(d => d)
+                .ToList();
+        }
+        catch (IOException)
+        {
+            return;
+        }
 
         foreach (var date in dates)
         {
-            foreach (var entry in _store.Load(date))
+            IEnumerable<TimeEntry> entries;
+            try
+            {
+                entries = _store.Load(date).ToList();
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (TimeLogFormatException)
+            {
+                continue;
+            }
+
+            foreach (var entry in entries)
             {
                 var name = entry.Activity.Trim();
                 if (!string.IsNullOrEmpty(name) && !_activities.Contains(name))

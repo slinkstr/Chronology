@@ -21,15 +21,8 @@ public class AppStateStore
             return new AppState();
         }
 
-        try
-        {
-            var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<AppState>(json, JsonOptions) ?? new AppState();
-        }
-        catch
-        {
-            return new AppState();
-        }
+        var json = File.ReadAllText(_filePath);
+        return JsonSerializer.Deserialize<AppState>(json, JsonOptions) ?? new AppState();
     }
 
     public void Save(AppState state)

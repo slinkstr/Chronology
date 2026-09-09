@@ -85,4 +85,63 @@ public class PlaintextTimeLogStoreTests : IDisposable
         Assert.Equal("Fix bug", loaded[0].Activity);
         Assert.Equal("Review", loaded[1].Activity);
     }
+
+    [Fact]
+    public void Load_MalformedTimestamp_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-06.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-06",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| XX:00 | Fix bug | 0:48     |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var ex = Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 6)).ToList());
+        Assert.Contains("line 5", ex.Message);
+        Assert.Contains("invalid timestamp", ex.Message);
+    }
+
+    [Fact]
+    public void Load_MalformedDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-07.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-07",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug | 0:XX     |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var ex = Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 7)).ToList());
+        Assert.Contains("line 5", ex.Message);
+        Assert.Contains("invalid duration", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NonTableLine_SkipsWithoutThrowing()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-08",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "Some user note here",
+            "| 09:00 | Fix bug | 0:48     |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var loaded = store.Load(new DateOnly(2026, 9, 8)).ToList();
+
+        Assert.Single(loaded);
+        Assert.Equal("Fix bug", loaded[0].Activity);
+    }
 }

@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="Chronology.Views.ErrorDialog"
+        Title="Error"
+        Width="600" SizeToContent="Height"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="16" Spacing="12">
+        <TextBox x:Name="MessageText"
+                 TextWrapping="Wrap"
+                 IsReadOnly="True"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 AcceptsReturn="True"
+                 Padding="0" />
+        <Button Content="OK" Click="OnOk"
+                HorizontalAlignment="Right"
+                Padding="24,6" />
+    </StackPanel>
+</Window>

@@ -26,6 +26,12 @@ public partial class MainWindow : Window
         _timer.Tick += (_, _) => (DataContext as MainViewModel)?.Tick();
         _timer.Start();
 
+        if (DataContext is MainViewModel vm)
+        {
+            vm.ErrorOccurred += OnErrorOccurred;
+            vm.FlushPendingErrors();
+        }
+
         Dispatcher.UIThread.Post(() => ActivityField?.Focus());
 
         // When the File submenu opens via click (not via Alt mnemonic), the
@@ -43,6 +49,12 @@ public partial class MainWindow : Window
 
         // Spacebar activates the focused menu item in addition to Enter.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private async void OnErrorOccurred(string title, string message)
+    {
+        var dialog = new ErrorDialog(message);
+        await dialog.ShowDialog(this);
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

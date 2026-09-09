@@ -658,4 +658,84 @@ public class MainViewModelTests : IDisposable
 
         Assert.Contains("(unattributed)", vm.RecentActivities);
     }
+
+    [Fact]
+    public void Constructor_MalformedDayFile_QueuesErrorAndContinues()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-04.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-04",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| XX:00 | Fix bug | 0:48     |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+
+        string? errorTitle = null;
+        string? errorMessage = null;
+        vm.ErrorOccurred += (t, m) => { errorTitle = t; errorMessage = m; };
+        vm.FlushPendingErrors();
+
+        Assert.NotNull(errorTitle);
+        Assert.Contains("Malformed", errorTitle);
+        Assert.Contains("line 5", errorMessage);
+    }
+
+    [Fact]
+    public void Constructor_CorruptStateFile_QueuesErrorAndContinues()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "state.json"), "{ invalid json }");
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+
+        string? errorTitle = null;
+        vm.ErrorOccurred += (t, m) => { errorTitle = t; };
+        vm.FlushPendingErrors();
+
+        Assert.NotNull(errorTitle);
+        Assert.Contains("Corrupt", errorTitle);
+    }
+
+    [Fact]
+    public void ErrorOccurred_RaisedImmediately_WhenSubscribedBeforeError()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+
+        string? errorTitle = null;
+        vm.ErrorOccurred += (t, m) => { errorTitle = t; };
+
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-05.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-05",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| XX:00 | Fix bug | 0:48     |",
+        ]);
+
+        AdvanceTime(TimeSpan.FromDays(1));
+        vm.Tick();
+
+        Assert.NotNull(errorTitle);
+        Assert.Contains("Malformed", errorTitle);
+    }
 }
