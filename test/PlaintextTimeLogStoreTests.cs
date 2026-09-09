@@ -58,7 +58,9 @@ public class PlaintextTimeLogStoreTests : IDisposable
         var path = Path.Combine(_tempDir, "2026-09-04.txt");
         var lines = File.ReadAllLines(path);
         Assert.StartsWith("# Chronology log - 2026-09-04", lines[0]);
-        Assert.Contains("| Test", lines[1]);
+        Assert.Equal("", lines[1]);
+        Assert.Contains("| Time", lines[2]);
+        Assert.Contains("| Test", lines[4]);
     }
 
     [Fact]
@@ -69,9 +71,11 @@ public class PlaintextTimeLogStoreTests : IDisposable
         File.WriteAllLines(path, [
             "# Chronology log - 2026-09-05",
             "",
-            "09:00 | Fix bug | 0:48",
+            "| Time  | Activity                                                                      | Duration |",
+            "| ----- | ----------------------------------------------------------------------------- | -------- |",
+            "| 09:00 | Fix bug                                                                       | 0:48     |",
             "  ",
-            "10:15 | Review | 0:30",
+            "| 10:15 | Review                                                                        | 0:30     |",
         ]);
 
         var store = new PlaintextTimeLogStore(_tempDir);

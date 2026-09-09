@@ -7,6 +7,10 @@ namespace Chronology.Services.TimeLogStores;
 
 public class PlaintextTimeLogStore : IFileBackedStore
 {
+    private const int TimeWidth     = 5;
+    private const int ActivityWidth = 80;
+    private const int DurationWidth = 8;
+
     private readonly string _dataDirectory;
 
     public PlaintextTimeLogStore(string dataDirectory)
@@ -29,7 +33,13 @@ public class PlaintextTimeLogStore : IFileBackedStore
                 continue;
             }
 
-            var parts = line.Split('|', 3);
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith('|') || !trimmed.EndsWith('|') || trimmed.Length < 2)
+            {
+                continue;
+            }
+
+            var parts = trimmed[1..^1].Split('|', 3);
             if (parts.Length != 3)
             {
                 continue;
@@ -107,9 +117,12 @@ public class PlaintextTimeLogStore : IFileBackedStore
     {
         var sb = new StringBuilder();
         sb.AppendLine($"# Chronology log - {date:yyyy-MM-dd}");
+        sb.AppendLine();
+        sb.AppendLine($"| {"Time",-TimeWidth} | {"Activity",-ActivityWidth} | {"Duration",-DurationWidth} |");
+        sb.AppendLine($"| {new string('-', TimeWidth)} | {new string('-', ActivityWidth)} | {new string('-', DurationWidth)} |");
         foreach (var entry in entries)
         {
-            sb.AppendLine($"{entry.Timestamp:HH:mm} | {entry.Activity,-15} | {FormatHMM(entry.Duration)}");
+            sb.AppendLine($"| {entry.Timestamp:HH:mm} | {entry.Activity,-ActivityWidth} | {FormatHMM(entry.Duration),-DurationWidth} |");
         }
         return sb.ToString();
     }
