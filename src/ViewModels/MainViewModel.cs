@@ -13,6 +13,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly AppStateStore   _stateStore;
     private readonly ActivityHistory _activityHistory;
     private readonly Func<DateTime>  _now;
+    private readonly List<(string Title, string Message)> _pendingErrors = [];
 
     private TimeSpan _accumulatedClock;
     private DateTime _lastTickAt;
@@ -36,13 +37,11 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _totalDisplay = "0:00";
 
-    public List<TimeEntry> Entries { get; } = [];
+    [ObservableProperty]
+    private bool _canGoBack;
 
-    public ObservableCollection<string> RecentActivities { get; } = [];
-
-    public event Action<string, string>? ErrorOccurred;
-
-    private readonly List<(string Title, string Message)> _pendingErrors = [];
+    [ObservableProperty]
+    private bool _canGoForward;
 
     public MainViewModel()
         : this(GetDefaultDataDirectory())
@@ -81,17 +80,15 @@ public partial class MainViewModel : ViewModelBase
         InitializeFilePoll();
     }
 
-    private void RaiseError(string title, string message)
-    {
-        if (ErrorOccurred != null)
-        {
-            ErrorOccurred.Invoke(title, message);
-        }
-        else
-        {
-            _pendingErrors.Add((title, message));
-        }
-    }
+    public event Action<string, string>? ErrorOccurred;
+
+    public List<TimeEntry> Entries { get; } = [];
+
+    public ObservableCollection<string> RecentActivities { get; } = [];
+
+    public TimeSpan CurrentClock => _accumulatedClock + (_now() - _lastTickAt);
+
+    public bool HasFileBackend => _store is IFileBackedStore;
 
     public void FlushPendingErrors()
     {
@@ -101,20 +98,6 @@ public partial class MainViewModel : ViewModelBase
         }
         _pendingErrors.Clear();
     }
-
-    partial void OnActivityChanged(string value)
-    {
-        if (!_isNavigating)
-        {
-            _activityCursor = -1;
-        }
-        RefreshNavigationCommands();
-    }
-
-    private static string GetDefaultDataDirectory() =>
-        Path.Combine(AppContext.BaseDirectory, "timelog");
-
-    public TimeSpan CurrentClock => _accumulatedClock + (_now() - _lastTickAt);
 
     public void Tick()
     {
@@ -132,6 +115,79 @@ public partial class MainViewModel : ViewModelBase
             SaveState();
             _lastStateSave = _now();
         }
+    }
+
+    public void OnTimeFieldGotFocus()
+    {
+        _isTimeFieldFocused = true;
+    }
+
+    public void OnTimeFieldLostFocus()
+    {
+        _isTimeFieldFocused = false;
+        RefreshTimeDisplay();
+    }
+
+    public string GetTimelogText()
+    {
+        return (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
+    }
+
+    internal void SaveState()
+    {
+        var state = new AppState
+        {
+            Clock = CurrentClock,
+            Activity = Activity,
+        };
+        try
+        {
+            _stateStore.Save(state);
+        }
+        catch (IOException ex)
+        {
+            RaiseError("File I/O error", $"Failed to save state: {ex.Message}");
+        }
+    }
+
+    private static string GetDefaultDataDirectory()
+    {
+        return Path.Combine(AppContext.BaseDirectory, "timelog");
+    }
+
+    private static string FormatHMM(TimeSpan ts)
+    {
+        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
+    }
+
+    private static TimeSpan Quantize(TimeSpan ts, TimeSpan precision)
+    {
+        if (precision == TimeSpan.Zero)
+        {
+            return ts;
+        }
+        return TimeSpan.FromTicks(ts.Ticks - ts.Ticks % precision.Ticks);
+    }
+
+    private void RaiseError(string title, string message)
+    {
+        if (ErrorOccurred != null)
+        {
+            ErrorOccurred.Invoke(title, message);
+        }
+        else
+        {
+            _pendingErrors.Add((title, message));
+        }
+    }
+
+    partial void OnActivityChanged(string value)
+    {
+        if (!_isNavigating)
+        {
+            _activityCursor = -1;
+        }
+        RefreshNavigationCommands();
     }
 
     private void CheckDayRollover()
@@ -207,14 +263,6 @@ public partial class MainViewModel : ViewModelBase
         UpdateTotalDisplay();
     }
 
-    public void OnTimeFieldGotFocus() => _isTimeFieldFocused = true;
-
-    public void OnTimeFieldLostFocus()
-    {
-        _isTimeFieldFocused = false;
-        RefreshTimeDisplay();
-    }
-
     [RelayCommand(CanExecute = nameof(CanLog))]
     private void Log()
     {
@@ -279,12 +327,6 @@ public partial class MainViewModel : ViewModelBase
         SaveState();
     }
 
-    [ObservableProperty]
-    private bool _canGoBack;
-
-    [ObservableProperty]
-    private bool _canGoForward;
-
     [RelayCommand]
     private void GoBack()
     {
@@ -330,8 +372,6 @@ public partial class MainViewModel : ViewModelBase
         RefreshNavigationCommands();
     }
 
-    public bool HasFileBackend => _store is IFileBackedStore;
-
     [RelayCommand]
     private void OpenCurrentLogFile()
     {
@@ -343,8 +383,6 @@ public partial class MainViewModel : ViewModelBase
     {
         (_store as IFileBackedStore)?.OpenDataDirectory();
     }
-
-    public string GetTimelogText() => (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
 
     private void SetActivityFromCursor(IReadOnlyList<string> history)
     {
@@ -424,33 +462,5 @@ public partial class MainViewModel : ViewModelBase
         }
         var total = logged + CurrentClock;
         TotalDisplay = $"{(int)total.TotalHours}:{total.Minutes:D2}";
-    }
-
-    internal void SaveState()
-    {
-        var state = new AppState
-        {
-            Clock = CurrentClock,
-            Activity = Activity,
-        };
-        try
-        {
-            _stateStore.Save(state);
-        }
-        catch (IOException ex)
-        {
-            RaiseError("File I/O error", $"Failed to save state: {ex.Message}");
-        }
-    }
-
-    private static string FormatHMM(TimeSpan ts) => $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
-
-    private static TimeSpan Quantize(TimeSpan ts, TimeSpan precision)
-    {
-        if (precision == TimeSpan.Zero)
-        {
-            return ts;
-        }
-        return TimeSpan.FromTicks(ts.Ticks - ts.Ticks % precision.Ticks);
     }
 }

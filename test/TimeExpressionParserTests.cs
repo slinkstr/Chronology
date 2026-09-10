@@ -29,7 +29,7 @@ public class TimeExpressionParserTests
     [InlineData("0:10 - 0:30")]
     public void TryParse_NegativeResult_ReturnsFalse(string input)
     {
-        Assert.False(TimeExpressionParser.TryParse(input, out var result));
+        Assert.False(TimeExpressionParser.TryParse(input, out _));
     }
 
     [Theory]

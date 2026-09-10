@@ -702,7 +702,7 @@ public class MainViewModelTests : IDisposable
         var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
 
         string? errorTitle = null;
-        vm.ErrorOccurred += (t, m) => { errorTitle = t; };
+        vm.ErrorOccurred += (t, _) => { errorTitle = t; };
         vm.FlushPendingErrors();
 
         Assert.NotNull(errorTitle);
@@ -720,7 +720,7 @@ public class MainViewModelTests : IDisposable
         var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
 
         string? errorTitle = null;
-        vm.ErrorOccurred += (t, m) => { errorTitle = t; };
+        vm.ErrorOccurred += (t, _) => { errorTitle = t; };
 
         Directory.CreateDirectory(_tempDir);
         var path = Path.Combine(_tempDir, "2026-09-05.txt");
@@ -754,12 +754,14 @@ public class MainViewModelTests : IDisposable
         Assert.Single(vm.Entries);
         Assert.Equal("Original", vm.Entries[0].Activity);
 
-        var path = Path.Combine(_tempDir, "2026-09-04.txt");
-        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddSeconds(5));
+        store.Save(new DateOnly(2026, 9, 4), [
+            new TimeEntry(new TimeOnly(9, 0), "Edited", TimeSpan.FromMinutes(45)),
+        ]);
 
         vm.Tick();
 
-        Assert.Empty(vm.Entries);
+        Assert.Single(vm.Entries);
+        Assert.Equal("Edited", vm.Entries[0].Activity);
     }
 
     [Fact]

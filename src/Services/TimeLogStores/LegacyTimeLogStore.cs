@@ -13,16 +13,16 @@ public class LegacyTimeLogStore : IFileBackedStore
     private const string Gap           = "  ";
     private const string Gap2          = "   ";
     private const int    IndentWidth   = 30;
-    private const string FilePrefix = "TimeLog.";
+    private const string FilePrefix    = "TimeLog.";
 
     private readonly string _dataDirectory;
-
-    public TimeSpan Precision => TimeSpan.FromHours(0.01);
 
     public LegacyTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;
     }
+
+    public TimeSpan Precision => TimeSpan.FromHours(0.01);
 
     public IEnumerable<TimeEntry> Load(DateOnly date)
     {
@@ -85,11 +85,6 @@ public class LegacyTimeLogStore : IFileBackedStore
         File.WriteAllText(path, Format(date, entries));
     }
 
-    public string GetFilePath(DateOnly date)
-    {
-        return Path.Combine(_dataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
-    }
-
     public IEnumerable<DateOnly> GetAvailableDates()
     {
         if (!Directory.Exists(_dataDirectory))
@@ -112,6 +107,17 @@ public class LegacyTimeLogStore : IFileBackedStore
         }
     }
 
+    public string Contents(DateOnly date)
+    {
+        var path = GetFilePath(date);
+        return File.Exists(path) ? File.ReadAllText(path) : Format(date, []);
+    }
+
+    public string GetFilePath(DateOnly date)
+    {
+        return Path.Combine(_dataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
+    }
+
     public void OpenCurrentDayFile(DateOnly date)
     {
         var path = GetFilePath(date);
@@ -131,13 +137,7 @@ public class LegacyTimeLogStore : IFileBackedStore
         Process.Start(new ProcessStartInfo(_dataDirectory) { UseShellExecute = true });
     }
 
-    public string Contents(DateOnly date)
-    {
-        var path = GetFilePath(date);
-        return File.Exists(path) ? File.ReadAllText(path) : Format(date, []);
-    }
-
-    internal string Format(DateOnly date, IEnumerable<TimeEntry> entries)
+    internal static string Format(DateOnly date, IEnumerable<TimeEntry> entries)
     {
         var sb = new StringBuilder();
         var entryList = entries.ToList();

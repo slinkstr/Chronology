@@ -19,6 +19,26 @@ public class ActivityHistory
 
     public IReadOnlyList<string> Activities => _activities;
 
+    public void Reload()
+    {
+        Load();
+    }
+
+    public void AddActivity(string activity)
+    {
+        var trimmed = activity.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return;
+        }
+        _activities.Remove(trimmed);
+        _activities.Insert(0, trimmed);
+        while (_activities.Count > MaxActivities)
+        {
+            _activities.RemoveAt(_activities.Count - 1);
+        }
+    }
+
     private void Load()
     {
         _activities.Clear();
@@ -64,26 +84,6 @@ public class ActivityHistory
                     }
                 }
             }
-        }
-    }
-
-    public void Reload()
-    {
-        Load();
-    }
-
-    public void AddActivity(string activity)
-    {
-        var trimmed = activity.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return;
-        }
-        _activities.Remove(trimmed);
-        _activities.Insert(0, trimmed);
-        while (_activities.Count > MaxActivities)
-        {
-            _activities.RemoveAt(_activities.Count - 1);
         }
     }
 }

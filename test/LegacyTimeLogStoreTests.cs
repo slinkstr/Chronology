@@ -1,5 +1,4 @@
 using Chronology.Models;
-using Chronology.Services;
 using Chronology.Services.TimeLogStores;
 using Xunit;
 
@@ -107,8 +106,7 @@ public class LegacyTimeLogStoreTests : IDisposable
             new(new TimeOnly(9, 0), "DEMO-1111 fixing that one really annoying bug where you input a time but instead of adding it subtracts.", TimeSpan.FromHours(0.27)),
         };
 
-        var store = new LegacyTimeLogStore(_tempDir);
-        var output = store.Format(new DateOnly(2026, 9, 8), entries);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 8), entries);
 
         var expected = string.Join(Environment.NewLine, new[]
         {
@@ -141,8 +139,7 @@ public class LegacyTimeLogStoreTests : IDisposable
             new(new TimeOnly(9, 0), longActivity, TimeSpan.FromHours(1.00)),
         };
 
-        var store = new LegacyTimeLogStore(_tempDir);
-        var output = store.Format(new DateOnly(2026, 9, 2), entries);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), entries);
         var lines = output.Split(Environment.NewLine);
 
         Assert.Equal(70, lines[2][30..].Length);
@@ -153,8 +150,7 @@ public class LegacyTimeLogStoreTests : IDisposable
     [Fact]
     public void Format_SeparatorLine_Is100Chars()
     {
-        var store = new LegacyTimeLogStore(_tempDir);
-        var output = store.Format(new DateOnly(2026, 9, 2), []);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), []);
         var lines = output.Split(Environment.NewLine);
 
         Assert.Equal(100, lines[1].Length);

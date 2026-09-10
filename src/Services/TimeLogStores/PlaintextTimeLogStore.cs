@@ -13,12 +13,12 @@ public class PlaintextTimeLogStore : IFileBackedStore
 
     private readonly string _dataDirectory;
 
-    public TimeSpan Precision => TimeSpan.FromMinutes(1);
-
     public PlaintextTimeLogStore(string dataDirectory)
     {
         _dataDirectory = dataDirectory;
     }
+
+    public TimeSpan Precision => TimeSpan.FromMinutes(1);
 
     public IEnumerable<TimeEntry> Load(DateOnly date)
     {
@@ -77,21 +77,11 @@ public class PlaintextTimeLogStore : IFileBackedStore
         }
     }
 
-    private static bool IsHeader(string firstCell) =>
-        firstCell.Equals("Time", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsSeparator(string[] cells) =>
-        cells.All(c => c.Trim().All(ch => ch == '-'));
-
     public void Save(DateOnly date, IEnumerable<TimeEntry> entries)
     {
         Directory.CreateDirectory(_dataDirectory);
         var path = GetFilePath(date);
         File.WriteAllText(path, Format(date, entries));
-    }
-
-    public string GetFilePath(DateOnly date) {
-        return Path.Combine(_dataDirectory, $"{date:yyyy-MM-dd}.txt");
     }
 
     public IEnumerable<DateOnly> GetAvailableDates()
@@ -109,6 +99,17 @@ public class PlaintextTimeLogStore : IFileBackedStore
                 yield return date;
             }
         }
+    }
+
+    public string Contents(DateOnly date)
+    {
+        var path = GetFilePath(date);
+        return File.Exists(path) ? File.ReadAllText(path) : Format(date, []);
+    }
+
+    public string GetFilePath(DateOnly date)
+    {
+        return Path.Combine(_dataDirectory, $"{date:yyyy-MM-dd}.txt");
     }
 
     public void OpenCurrentDayFile(DateOnly date)
@@ -130,13 +131,7 @@ public class PlaintextTimeLogStore : IFileBackedStore
         Process.Start(new ProcessStartInfo(_dataDirectory) { UseShellExecute = true });
     }
 
-    public string Contents(DateOnly date)
-    {
-        var path = GetFilePath(date);
-        return File.Exists(path) ? File.ReadAllText(path) : Format(date, []);
-    }
-
-    internal string Format(DateOnly date, IEnumerable<TimeEntry> entries)
+    private static string Format(DateOnly date, IEnumerable<TimeEntry> entries)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"# Chronology log - {date:yyyy-MM-dd}");
@@ -150,9 +145,22 @@ public class PlaintextTimeLogStore : IFileBackedStore
         return sb.ToString();
     }
 
-    private static string FormatHMM(TimeSpan ts) => $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
+    private static bool IsHeader(string firstCell)
+    {
+        return firstCell.Equals("Time", StringComparison.OrdinalIgnoreCase);
+    }
 
-    internal static bool TryParseHMM(string text, out TimeSpan result)
+    private static bool IsSeparator(string[] cells)
+    {
+        return cells.All(c => c.Trim().All(ch => ch == '-'));
+    }
+
+    private static string FormatHMM(TimeSpan ts)
+    {
+        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
+    }
+
+    private static bool TryParseHMM(string text, out TimeSpan result)
     {
         result = TimeSpan.Zero;
         var span = text.AsSpan().Trim();
