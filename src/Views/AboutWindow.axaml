@@ -11,11 +11,10 @@
         ShowInTaskbar="False">
 
     <StackPanel Margin="16" Spacing="8">
-        <SelectableTextBlock x:Name="TitleText" FontWeight="Bold" FontSize="18"
+        <SelectableTextBlock x:Name="TitleText" FontWeight="Bold"
                              Background="Transparent" HorizontalAlignment="Stretch" />
         <SelectableTextBlock x:Name="InfoText"
                              Background="Transparent" HorizontalAlignment="Stretch"
-                             Classes="monospace" FontSize="13"
                              TextWrapping="NoWrap" />
         <Button Content="OK" Click="OnOk"
                 HorizontalAlignment="Right"

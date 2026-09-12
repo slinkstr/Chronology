@@ -28,7 +28,7 @@ public partial class AboutWindow : Window
         var dotnet = RuntimeInformation.FrameworkDescription;
 
         InfoText.Text = $"Commit: {commitDate} {BuildInfo.GitCommitHash.Trim()}\n"
-                      + $"Built:  {buildDate}\n"
+                      + $"Built: {buildDate}\n"
                       + $"Dotnet: {dotnet}";
     }
 

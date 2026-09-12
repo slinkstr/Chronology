@@ -55,13 +55,11 @@
                         Content="&#x2190;"
                         Command="{Binding GoBackCommand}"
                         Classes.disabled="{Binding !CanGoBack}"
-                        FontSize="14"
                         ToolTip.Tip="Previous activity" />
                 <Button Grid.Row="0" Grid.Column="3" Classes="compact"
                         Content="&#x2192;"
                         Command="{Binding GoForwardCommand}"
                         Classes.disabled="{Binding !CanGoForward}"
-                        FontSize="14"
                         ToolTip.Tip="Next activity" />
 
                 <Label Grid.Row="1" Grid.Column="0" Content="Time" VerticalAlignment="Center" />
@@ -74,13 +72,11 @@
                 <Button Grid.Row="1" Grid.Column="2" Classes="compact"
                         Content="&#x21bb;"
                         Command="{Binding ResetCommand}"
-                        FontSize="16"
                         ToolTip.Tip="Reset clock" />
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
                            Text="{Binding Error}"
                            Foreground="OrangeRed"
-                           FontSize="13"
                            IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
             </Grid>
@@ -93,8 +89,7 @@
                 <TextBlock Grid.Column="1"
                            Text="{Binding TotalDisplay, StringFormat='Total: {0}'}"
                            VerticalAlignment="Center"
-                           Classes="monospace"
-                           FontSize="14" />
+                           Classes="monospace" />
             </Grid>
         </StackPanel>
     </DockPanel>
