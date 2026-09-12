@@ -8,6 +8,7 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Version>0.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,5 +30,31 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
   </ItemGroup>
+
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitCommitHash" />
+    </Exec>
+    <Exec Command="git log -1 --format=%%cI" ConsoleToMSBuild="true" ContinueOnError="true"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitCommitDate" />
+    </Exec>
+    <Exec Command="git status --porcelain" ConsoleToMSBuild="true" ContinueOnError="true"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitDirtyCheck" />
+    </Exec>
+    <PropertyGroup>
+      <GitCommitHash Condition="'$(GitCommitHash)' == ''">unknown</GitCommitHash>
+      <GitCommitDate Condition="'$(GitCommitDate)' == ''">unknown</GitCommitDate>
+      <GitCommitHash Condition="'$(GitDirtyCheck)' != ''">$(GitCommitHash)-dirty</GitCommitHash>
+      <BuildDateUtc>$([System.DateTime]::UtcNow.ToString("o"))</BuildDateUtc>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)BuildInfo.g.cs" Overwrite="true"
+      Lines='namespace Chronology { internal static class BuildInfo { public const string GitCommitHash = "$(GitCommitHash)"%3B public const string GitCommitDate = "$(GitCommitDate)"%3B public const string BuildDateUtc = "$(BuildDateUtc)"%3B } }' />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)BuildInfo.g.cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>

@@ -103,4 +103,10 @@ public partial class MainWindow : Window
     {
         Close();
     }
+
+    private async void OnAbout(object? sender, RoutedEventArgs e)
+    {
+        var about = new AboutWindow();
+        await about.ShowDialog(this);
+    }
 }

@@ -19,7 +19,6 @@
                  AcceptsReturn="True"
                  Padding="0" />
         <Button Content="OK" Click="OnOk"
-                HorizontalAlignment="Right"
-                Padding="24,6" />
+                HorizontalAlignment="Right" />
     </StackPanel>
 </Window>
