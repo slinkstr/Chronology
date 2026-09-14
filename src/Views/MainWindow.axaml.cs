@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Chronology.ViewModels;
@@ -56,18 +57,17 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Space && FocusManager?.GetFocusedElement() is MenuItem mi)
+        if (e.Key != Key.Space || FocusManager.GetFocusedElement() is not MenuItem mi) { return; }
+
+        if (mi.HasSubMenu)
         {
-            if (mi.HasSubMenu)
-            {
-                mi.IsSubMenuOpen = !mi.IsSubMenuOpen;
-            }
-            else
-            {
-                mi.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            }
-            e.Handled = true;
+            mi.IsSubMenuOpen = !mi.IsSubMenuOpen;
         }
+        else
+        {
+            mi.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
+        e.Handled = true;
     }
 
     private void OnClosed(object? sender, EventArgs e)
