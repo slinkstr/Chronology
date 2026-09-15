@@ -754,6 +754,7 @@ public class MainViewModelTests : IDisposable
         Assert.Single(vm.Entries);
         Assert.Equal("Original", vm.Entries[0].Activity);
 
+        Thread.Sleep(20);
         store.Save(new DateOnly(2026, 9, 4), [
             new TimeEntry(new TimeOnly(9, 0), "Edited", TimeSpan.FromMinutes(45)),
         ]);
