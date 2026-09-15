@@ -7,6 +7,8 @@ namespace Chronology.Services.TimeLogStores;
 
 public class LegacyTimeLogStore : IFileBackedStore
 {
+    public string DataDirectory { get; }
+
     private const int    TimeWidth     = 5;
     private const int    ProjectWidth  = 20;
     private const int    ActivityWidth = 70;
@@ -15,11 +17,9 @@ public class LegacyTimeLogStore : IFileBackedStore
     private const int    IndentWidth   = 30;
     private const string FilePrefix    = "TimeLog.";
 
-    private readonly string _dataDirectory;
-
-    public LegacyTimeLogStore(string dataDirectory)
+    public LegacyTimeLogStore(string dataDirectory = "./timelog")
     {
-        _dataDirectory = dataDirectory;
+        DataDirectory = dataDirectory;
     }
 
     public TimeSpan Precision => TimeSpan.FromHours(0.01);
@@ -80,19 +80,19 @@ public class LegacyTimeLogStore : IFileBackedStore
 
     public void Save(DateOnly date, IEnumerable<TimeEntry> entries)
     {
-        Directory.CreateDirectory(_dataDirectory);
+        Directory.CreateDirectory(DataDirectory);
         var path = GetFilePath(date);
         File.WriteAllText(path, Format(date, entries));
     }
 
     public IEnumerable<DateOnly> GetAvailableDates()
     {
-        if (!Directory.Exists(_dataDirectory))
+        if (!Directory.Exists(DataDirectory))
         {
             yield break;
         }
 
-        foreach (var file in Directory.EnumerateFiles(_dataDirectory, $"{FilePrefix}*.txt"))
+        foreach (var file in Directory.EnumerateFiles(DataDirectory, $"{FilePrefix}*.txt"))
         {
             var name = Path.GetFileNameWithoutExtension(file);
             if (!name.StartsWith(FilePrefix, StringComparison.Ordinal))
@@ -115,7 +115,7 @@ public class LegacyTimeLogStore : IFileBackedStore
 
     public string GetFilePath(DateOnly date)
     {
-        return Path.Combine(_dataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
+        return Path.Combine(DataDirectory, $"{FilePrefix}{date:yyyyMMdd}.txt");
     }
 
     public void OpenCurrentDayFile(DateOnly date)
@@ -123,7 +123,7 @@ public class LegacyTimeLogStore : IFileBackedStore
         var path = GetFilePath(date);
         if (File.Exists(path))
         {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Path.GetFullPath(path)) { UseShellExecute = true });
         }
         else
         {
@@ -133,8 +133,8 @@ public class LegacyTimeLogStore : IFileBackedStore
 
     public void OpenDataDirectory()
     {
-        Directory.CreateDirectory(_dataDirectory);
-        Process.Start(new ProcessStartInfo(_dataDirectory) { UseShellExecute = true });
+        Directory.CreateDirectory(DataDirectory);
+        Process.Start(new ProcessStartInfo(Path.GetFullPath(DataDirectory)) { UseShellExecute = true });
     }
 
     internal static string Format(DateOnly date, IEnumerable<TimeEntry> entries)

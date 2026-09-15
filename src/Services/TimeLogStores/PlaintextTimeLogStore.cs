@@ -7,15 +7,15 @@ namespace Chronology.Services.TimeLogStores;
 
 public class PlaintextTimeLogStore : IFileBackedStore
 {
+    public string DataDirectory { get; }
+
     private const int TimeWidth     = 5;
     private const int ActivityWidth = 80;
     private const int DurationWidth = 8;
 
-    private readonly string _dataDirectory;
-
-    public PlaintextTimeLogStore(string dataDirectory)
+    public PlaintextTimeLogStore(string dataDirectory = "./timelog")
     {
-        _dataDirectory = dataDirectory;
+        DataDirectory = dataDirectory;
     }
 
     public TimeSpan Precision => TimeSpan.FromMinutes(1);
@@ -79,19 +79,19 @@ public class PlaintextTimeLogStore : IFileBackedStore
 
     public void Save(DateOnly date, IEnumerable<TimeEntry> entries)
     {
-        Directory.CreateDirectory(_dataDirectory);
+        Directory.CreateDirectory(DataDirectory);
         var path = GetFilePath(date);
         File.WriteAllText(path, Format(date, entries));
     }
 
     public IEnumerable<DateOnly> GetAvailableDates()
     {
-        if (!Directory.Exists(_dataDirectory))
+        if (!Directory.Exists(DataDirectory))
         {
             yield break;
         }
 
-        foreach (var file in Directory.EnumerateFiles(_dataDirectory, "*.txt"))
+        foreach (var file in Directory.EnumerateFiles(DataDirectory, "*.txt"))
         {
             var name = Path.GetFileNameWithoutExtension(file);
             if (DateOnly.TryParseExact(name, "yyyy-MM-dd", out var date))
@@ -109,7 +109,7 @@ public class PlaintextTimeLogStore : IFileBackedStore
 
     public string GetFilePath(DateOnly date)
     {
-        return Path.Combine(_dataDirectory, $"{date:yyyy-MM-dd}.txt");
+        return Path.Combine(DataDirectory, $"{date:yyyy-MM-dd}.txt");
     }
 
     public void OpenCurrentDayFile(DateOnly date)
@@ -117,7 +117,7 @@ public class PlaintextTimeLogStore : IFileBackedStore
         var path = GetFilePath(date);
         if (File.Exists(path))
         {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Path.GetFullPath(path)) { UseShellExecute = true });
         }
         else
         {
@@ -127,8 +127,8 @@ public class PlaintextTimeLogStore : IFileBackedStore
 
     public void OpenDataDirectory()
     {
-        Directory.CreateDirectory(_dataDirectory);
-        Process.Start(new ProcessStartInfo(_dataDirectory) { UseShellExecute = true });
+        Directory.CreateDirectory(DataDirectory);
+        Process.Start(new ProcessStartInfo(Path.GetFullPath(DataDirectory)) { UseShellExecute = true });
     }
 
     private static string Format(DateOnly date, IEnumerable<TimeEntry> entries)

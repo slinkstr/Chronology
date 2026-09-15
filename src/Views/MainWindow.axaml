@@ -32,6 +32,9 @@
                 <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard"
                           IsVisible="{Binding HasFileBackend}" />
                 <Separator IsVisible="{Binding HasFileBackend}" />
+                <MenuItem Header="_Reload config" Command="{Binding ReloadCommand}" />
+                <MenuItem Header="Edit _config" Command="{Binding EditConfigCommand}" />
+                <Separator />
                 <MenuItem Header="E_xit" Click="OnExit" />
             </MenuItem>
             <MenuItem Header="_Help">
