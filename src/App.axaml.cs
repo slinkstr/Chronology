@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Chronology.Services;
 using Chronology.ViewModels;
 using Chronology.Views;
 
@@ -17,10 +18,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            try
             {
-                DataContext = new MainViewModel(),
-            };
+                desktop.MainWindow = new MainWindow
+                {
+                    DataContext = new MainViewModel(),
+                };
+            }
+            catch (ConfigException ex)
+            {
+                desktop.MainWindow = new ErrorDialog($"Failed to load config at {Config.FilePath}:\n{ex.Message}");
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

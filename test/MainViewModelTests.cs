@@ -25,18 +25,19 @@ public class MainViewModelTests : IDisposable
         }
     }
 
-    private MainViewModel CreateViewModel(TimeSpan initialClock = default)
+    private MainViewModel CreateViewModel(TimeSpan initialClock = default, FakeAlertSoundService? alertSound = null,
+        ConfigReminder? reminder = null)
     {
-        var store = new DummyTimeLogStore();
         var stateStore = new AppStateStore(_tempDir);
-        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var history = new ActivityHistory(new PlaintextTimeLogStore(_tempDir), () => DateOnly.FromDateTime(_virtualNow));
 
         if (initialClock != default)
         {
             stateStore.Save(new AppState { Clock = initialClock });
         }
 
-        return new MainViewModel(store, stateStore, history, () => _virtualNow);
+        return new MainViewModel(null, stateStore, history, () => _virtualNow,
+            alertSound ?? new FakeAlertSoundService(), reminder);
     }
 
     private MainViewModel CreateViewModelWithRealStore(TimeSpan initialClock = default)
@@ -50,12 +51,12 @@ public class MainViewModelTests : IDisposable
             stateStore.Save(new AppState { Clock = initialClock });
         }
 
-        return new MainViewModel(store, stateStore, history, () => _virtualNow);
+        return new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
     }
 
     private void AdvanceTime(TimeSpan delta) => _virtualNow += delta;
 
-    // Unit tests (DummyTimeLogStore)
+    // Unit tests (no store)
 
     [Fact]
     public void Constructor_NoState_ClockStartsAtZero()
@@ -415,6 +416,122 @@ public class MainViewModelTests : IDisposable
         Assert.Equal(TimeSpan.FromMinutes(30), vm.CurrentClock);
     }
 
+    [Fact]
+    public void Tick_StartupWithPendingTime_DoesNotAlert()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(initialClock: TimeSpan.FromHours(2), alertSound: alertSound, reminder: reminder);
+
+        vm.Tick();
+
+        Assert.Empty(alertSound.PlayedFiles);
+    }
+
+    [Fact]
+    public void Tick_IdleBelowReminderInterval_DoesNotAlert()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
+        vm.Tick();
+
+        Assert.Empty(alertSound.PlayedFiles);
+    }
+
+    [Fact]
+    public void Tick_IdleAtReminderInterval_PlaysSystemBeep()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(5));
+        vm.Tick();
+
+        var playedFile = Assert.Single(alertSound.PlayedFiles);
+        Assert.Null(playedFile);
+    }
+
+    [Fact]
+    public void Tick_ConfiguredSoundFile_IsPlayed()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5, SoundFile = "/tmp/reminder.wav" };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+
+        var playedFile = Assert.Single(alertSound.PlayedFiles);
+        Assert.Equal("/tmp/reminder.wav", playedFile);
+    }
+
+    [Fact]
+    public void Tick_ReminderDoesNotRepeatEveryTick()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        AdvanceTime(TimeSpan.FromSeconds(1));
+        vm.Tick();
+
+        Assert.Single(alertSound.PlayedFiles);
+    }
+
+    [Fact]
+    public void Tick_ReminderRepeatsAfterNextInterval()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        AdvanceTime(TimeSpan.FromMinutes(5));
+        vm.Tick();
+
+        Assert.Equal(2, alertSound.PlayedFiles.Count);
+    }
+
+    [Fact]
+    public void Tick_ReminderDisabled_DoesNotAlert()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = false, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        vm.Tick();
+
+        Assert.Empty(alertSound.PlayedFiles);
+    }
+
+    [Fact]
+    public void NotifyInteraction_ResetsReminderSchedule()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        vm.NotifyInteraction();
+
+        AdvanceTime(TimeSpan.FromMinutes(4) + TimeSpan.FromSeconds(59));
+        vm.Tick();
+        Assert.Single(alertSound.PlayedFiles);
+
+        AdvanceTime(TimeSpan.FromSeconds(2));
+        vm.Tick();
+        Assert.Equal(2, alertSound.PlayedFiles.Count);
+    }
+
     // Integration tests (PlaintextTimeLogStore)
 
     [Fact]
@@ -424,7 +541,7 @@ public class MainViewModelTests : IDisposable
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(30));
         vm.Tick();
 
@@ -443,12 +560,12 @@ public class MainViewModelTests : IDisposable
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(30));
         vm1.Tick();
         vm1.SaveState();
 
-        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         Assert.Equal(TimeSpan.FromMinutes(30), vm2.CurrentClock);
     }
 
@@ -531,7 +648,7 @@ public class MainViewModelTests : IDisposable
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
 
         var text = vm.GetTimelogText();
         Assert.Contains("Fix bug", text);
@@ -561,7 +678,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(90));
         vm.Tick();
 
@@ -579,7 +696,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         vm.Activity = "Working late";
         AdvanceTime(TimeSpan.FromMinutes(60));
         vm.Tick();
@@ -597,7 +714,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(90));
         vm.Tick();
 
@@ -615,7 +732,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(90));
         vm.Tick();
 
@@ -631,7 +748,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         _virtualNow = new DateTime(2026, 9, 5, 0, 0, 0);
         vm.ResetCommand.Execute(null);
         vm.Tick();
@@ -650,7 +767,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 23, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         Assert.Contains("Old task", vm.RecentActivities);
 
         AdvanceTime(TimeSpan.FromMinutes(90));
@@ -677,7 +794,7 @@ public class MainViewModelTests : IDisposable
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
         _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
 
         string? errorTitle = null;
         string? errorMessage = null;
@@ -699,7 +816,7 @@ public class MainViewModelTests : IDisposable
         var stateStore = new AppStateStore(_tempDir);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
 
         string? errorTitle = null;
         vm.ErrorOccurred += (t, _) => { errorTitle = t; };
@@ -717,7 +834,7 @@ public class MainViewModelTests : IDisposable
         _virtualNow = new DateTime(2026, 9, 4, 10, 0, 0);
         var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
 
         string? errorTitle = null;
         vm.ErrorOccurred += (t, _) => { errorTitle = t; };
@@ -750,7 +867,7 @@ public class MainViewModelTests : IDisposable
             new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
         ]);
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         Assert.Single(vm.Entries);
         Assert.Equal("Original", vm.Entries[0].Activity);
 
@@ -776,7 +893,7 @@ public class MainViewModelTests : IDisposable
             new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
         ]);
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(15));
 
         vm.Activity = "New task";
@@ -801,7 +918,7 @@ public class MainViewModelTests : IDisposable
             new TimeEntry(new TimeOnly(9, 0), "Original", TimeSpan.FromMinutes(30)),
         ]);
 
-        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow);
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         var entriesBefore = vm.Entries.Count;
 
         vm.Tick();

@@ -9,9 +9,10 @@ namespace Chronology.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    private readonly AppStateStore  _stateStore;
-    private readonly Func<DateTime> _now;
+    private readonly IAlertSoundService _alertSound;
+    private readonly Func<DateTime>     _now;
     private readonly List<(string Title, string Message)> _pendingErrors = [];
+    private readonly AppStateStore      _stateStore;
 
     private int              _activityCursor = -1;
     private ActivityHistory? _activityHistory;
@@ -19,9 +20,11 @@ public partial class MainViewModel : ViewModelBase
     private DateOnly         _currentDate;
     private bool             _isNavigating;
     private bool             _isTimeFieldFocused;
+    private DateTime         _lastInteraction;
     private DateTime         _lastKnownWriteTime;
     private DateTime         _lastStateSave;
     private DateTime         _lastTickAt;
+    private ConfigReminder   _reminder;
     private ITimeLogStore?   _store;
 
     [ObservableProperty]
@@ -51,21 +54,21 @@ public partial class MainViewModel : ViewModelBase
     public event Action<string, string>? ErrorOccurred;
 
     public MainViewModel()
-        : this(LoadStoreFromConfig(out var startupError), new AppStateStore(Directory.GetCurrentDirectory()), null, () => DateTime.Now)
+        : this(Config.Load(), new AlertSoundService())
     {
-        if (startupError is { } err)
-        {
-            _pendingErrors.Add(err);
-        }
     }
 
-    public MainViewModel(ITimeLogStore? store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now)
+    internal MainViewModel(ITimeLogStore? store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now,
+        IAlertSoundService alertSound, ConfigReminder? reminder = null)
     {
+        _alertSound      = alertSound;
         _store           = store;
         _stateStore      = stateStore;
+        _reminder        = reminder ?? new ConfigReminder();
         _activityHistory = activityHistory ?? (store != null ? new ActivityHistory(store, () => DateOnly.FromDateTime(now())) : null);
         _now             = now;
         _currentDate     = DateOnly.FromDateTime(_now());
+        _lastInteraction = _now();
         _lastTickAt      = _now();
         _lastStateSave   = _now();
 
@@ -76,6 +79,12 @@ public partial class MainViewModel : ViewModelBase
         UpdateTotalDisplay();
         RefreshNavigationCommands();
         InitializeFilePoll();
+    }
+
+    private MainViewModel(Config config, IAlertSoundService alertSound)
+        : this(config.Store, new AppStateStore(Directory.GetCurrentDirectory()), null, () => DateTime.Now,
+            alertSound, config.Reminder)
+    {
     }
 
     public void FlushPendingErrors()
@@ -90,6 +99,11 @@ public partial class MainViewModel : ViewModelBase
     public string GetTimelogText()
     {
         return (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
+    }
+
+    public void NotifyInteraction()
+    {
+        _lastInteraction = _now();
     }
 
     public void OnTimeFieldGotFocus()
@@ -107,6 +121,7 @@ public partial class MainViewModel : ViewModelBase
     {
         CheckDayRollover();
         PollDayFile();
+        CheckReminder();
 
         if (!_isTimeFieldFocused)
         {
@@ -150,20 +165,6 @@ public partial class MainViewModel : ViewModelBase
     private static string FormatHMM(TimeSpan ts)
     {
         return $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
-    }
-
-    private static ITimeLogStore? LoadStoreFromConfig(out (string Title, string Message)? error)
-    {
-        try
-        {
-            error = null;
-            return Config.LoadStore();
-        }
-        catch (ConfigException ex)
-        {
-            error = ("Config error", $"Failed to load config at startup: {ex.Message}");
-            return null;
-        }
     }
 
     private static TimeSpan Quantize(TimeSpan ts, TimeSpan precision)
@@ -222,6 +223,21 @@ public partial class MainViewModel : ViewModelBase
         SaveState();
         _lastStateSave = _now();
         InitializeFilePoll();
+    }
+
+    private void CheckReminder()
+    {
+        var now = _now();
+        if (!_reminder.Enabled || now - _lastInteraction < _reminder.Interval)
+        {
+            return;
+        }
+
+        _lastInteraction = now;
+        if (!_alertSound.Play(_reminder.SoundFile))
+        {
+            RaiseError("Reminder sound", "Failed to play the reminder sound.");
+        }
     }
 
     private DateTime GetDayFileWriteTime()
@@ -495,10 +511,10 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void Reload()
     {
-        ITimeLogStore? newStore;
+        Config config;
         try
         {
-            newStore = Config.LoadStore();
+            config = Config.Load();
         }
         catch (ConfigException ex)
         {
@@ -511,7 +527,8 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        _store = newStore;
+        _store = config.Store;
+        _reminder = config.Reminder;
         _activityHistory = _store != null
             ? new ActivityHistory(_store, () => DateOnly.FromDateTime(_now()))
             : null;

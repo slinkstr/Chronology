@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json.Serialization;
 using Chronology.Models;
 
 namespace Chronology.Services.TimeLogStores;
 
 public class LegacyTimeLogStore : IFileBackedStore
 {
+    public const string StoreName = "Legacy";
+
     public string DataDirectory { get; }
 
     private const int    TimeWidth     = 5;
@@ -22,6 +25,7 @@ public class LegacyTimeLogStore : IFileBackedStore
         DataDirectory = dataDirectory;
     }
 
+    [JsonIgnore]
     public TimeSpan Precision => TimeSpan.FromHours(0.01);
 
     public IEnumerable<TimeEntry> Load(DateOnly date)

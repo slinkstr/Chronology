@@ -47,6 +47,15 @@ public partial class MainWindow : Window
 
         // Spacebar activates the focused menu item in addition to Enter.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+
+        AddHandler(KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnAnyInput, RoutingStrategies.Tunnel);
+    }
+
+    private void OnAnyInput(object? sender, RoutedEventArgs e)
+    {
+        (DataContext as MainViewModel)?.NotifyInteraction();
     }
 
     private async void OnErrorOccurred(string title, string message)
