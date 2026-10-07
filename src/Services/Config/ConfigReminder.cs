@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Chronology.Services;
+namespace Chronology.Services.Config;
 
 public sealed class ConfigReminder
 {

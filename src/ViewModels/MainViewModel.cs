@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Chronology.Models;
 using Chronology.Services;
+using Chronology.Services.Config;
+using Chronology.Services.TimeLogStores;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 

@@ -1,5 +1,6 @@
 using Chronology.Models;
 using Chronology.Services;
+using Chronology.Services.Config;
 using Chronology.Services.TimeLogStores;
 using Chronology.ViewModels;
 using Xunit;

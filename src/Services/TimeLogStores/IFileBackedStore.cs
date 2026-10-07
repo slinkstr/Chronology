@@ -1,4 +1,4 @@
-namespace Chronology.Services;
+namespace Chronology.Services.TimeLogStores;
 
 public interface IFileBackedStore : ITimeLogStore
 {

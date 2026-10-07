@@ -1,6 +1,6 @@
 using Chronology.Models;
 
-namespace Chronology.Services;
+namespace Chronology.Services.TimeLogStores;
 
 public interface ITimeLogStore
 {

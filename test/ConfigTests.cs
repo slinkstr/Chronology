@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Chronology.Services;
+using Chronology.Services.Config;
 using Chronology.Services.TimeLogStores;
 using Xunit;
 

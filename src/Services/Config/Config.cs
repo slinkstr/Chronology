@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Chronology.Services.TimeLogStores;
 
-namespace Chronology.Services;
+namespace Chronology.Services.Config;
 
 public sealed class Config
 {
