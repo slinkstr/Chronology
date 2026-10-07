@@ -14,18 +14,19 @@ public partial class MainViewModel : ViewModelBase
     private readonly List<(string Title, string Message)> _pendingErrors = [];
     private readonly AppStateStore      _stateStore;
 
-    private int              _activityCursor = -1;
-    private ActivityHistory? _activityHistory;
-    private TimeSpan         _accumulatedClock;
-    private DateOnly         _currentDate;
-    private bool             _isNavigating;
-    private bool             _isTimeFieldFocused;
-    private DateTime         _lastInteraction;
-    private DateTime         _lastKnownWriteTime;
-    private DateTime         _lastStateSave;
-    private DateTime         _lastTickAt;
-    private ConfigReminder   _reminder;
-    private ITimeLogStore?   _store;
+    private int                      _activityCursor = -1;
+    private ActivityHistory?         _activityHistory;
+    private TimeSpan                 _accumulatedClock;
+    private DateOnly                 _currentDate;
+    private bool                     _isNavigating;
+    private bool                     _isTimeFieldFocused;
+    private DateTime                 _lastInteraction;
+    private DateTime                 _lastKnownWriteTime;
+    private DateTime                 _lastStateSave;
+    private DateTime                 _lastTickAt;
+    private ConfigReminder           _reminder;
+    private CancellationTokenSource? _reminderSoundCts;
+    private ITimeLogStore?           _store;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -101,9 +102,15 @@ public partial class MainViewModel : ViewModelBase
         return (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
     }
 
+    public void NotifyClosing()
+    {
+        _reminderSoundCts?.Cancel();
+    }
+
     public void NotifyInteraction()
     {
         _lastInteraction = _now();
+        _reminderSoundCts?.Cancel();
     }
 
     public void OnTimeFieldGotFocus()
@@ -234,10 +241,9 @@ public partial class MainViewModel : ViewModelBase
         }
 
         _lastInteraction = now;
-        if (!_alertSound.Play(_reminder.SoundFile))
-        {
-            RaiseError("Reminder sound", "Failed to play the reminder sound.");
-        }
+        _reminderSoundCts?.Cancel();
+        _reminderSoundCts = new CancellationTokenSource();
+        _ = PlayReminderSoundAsync(_reminderSoundCts.Token);
     }
 
     private DateTime GetDayFileWriteTime()
@@ -296,6 +302,24 @@ public partial class MainViewModel : ViewModelBase
         catch (System.Text.Json.JsonException ex)
         {
             RaiseError("Corrupt state file", $"Failed to parse state.json: {ex.Message}");
+        }
+    }
+
+    private async Task PlayReminderSoundAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!await _alertSound.PlayAsync(_reminder.SoundFile, _reminder.Count, cancellationToken))
+            {
+                RaiseError("Reminder sound", "Failed to play the reminder sound.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            RaiseError("Reminder sound", $"Failed to play the reminder sound: {ex.Message}");
         }
     }
 

@@ -120,6 +120,47 @@ public class ConfigTests : IDisposable
     }
 
     [Fact]
+    public void Load_InvalidReminderCount_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Plaintext"
+              },
+              "reminder": {
+                "count": 0
+              }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("count", ex.Message);
+    }
+
+    [Fact]
+    public void Load_ValidReminderCount_LoadsCount()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Plaintext"
+              },
+              "reminder": {
+                "count": 3
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(3, config.Reminder.Count);
+    }
+
+    [Fact]
     public void Load_MissingSoundFile_Throws()
     {
         Directory.CreateDirectory(_tempDir);
@@ -176,7 +217,7 @@ public class ConfigTests : IDisposable
         Assert.Equal("Plaintext", store.GetProperty("type").GetString());
 
         var reminder = root.GetProperty("reminder");
-        Assert.Equal(["enabled", "intervalMinutes", "soundFile"], reminder.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(["count", "enabled", "intervalMinutes", "soundFile"], reminder.EnumerateObject().Select(p => p.Name).Order());
     }
 
     [Fact]
@@ -258,6 +299,7 @@ public class ConfigTests : IDisposable
 
     private static void AssertReminderMatches(ConfigReminder expected, ConfigReminder actual)
     {
+        Assert.Equal(expected.Count, actual.Count);
         Assert.Equal(expected.Enabled, actual.Enabled);
         Assert.Equal(expected.IntervalMinutes, actual.IntervalMinutes);
         Assert.Equal(expected.SoundFile, actual.SoundFile);

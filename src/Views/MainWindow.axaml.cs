@@ -82,6 +82,7 @@ public partial class MainWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         _timer?.Stop();
+        (DataContext as MainViewModel)?.NotifyClosing();
     }
 
     private void OnTimeFieldGotFocus(object? sender, RoutedEventArgs e)

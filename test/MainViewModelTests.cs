@@ -513,6 +513,22 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Tick_ReminderSoundFailure_RaisesError()
+    {
+        var alertSound = new FakeAlertSoundService { Result = false };
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+
+        Assert.Equal("Reminder sound", title);
+    }
+
+    [Fact]
     public void NotifyInteraction_ResetsReminderSchedule()
     {
         var alertSound = new FakeAlertSoundService();
@@ -530,6 +546,91 @@ public class MainViewModelTests : IDisposable
         AdvanceTime(TimeSpan.FromSeconds(2));
         vm.Tick();
         Assert.Equal(2, alertSound.PlayedFiles.Count);
+    }
+
+    [Fact]
+    public void Tick_PassesReminderCountToAlertSound()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5, Count = 3 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+
+        var count = Assert.Single(alertSound.Counts);
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public void Tick_ReminderRefire_CancelsPreviousPlay()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        var firstToken = alertSound.LastToken;
+
+        AdvanceTime(TimeSpan.FromMinutes(5));
+        vm.Tick();
+
+        Assert.True(firstToken.IsCancellationRequested);
+        Assert.False(alertSound.LastToken.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void NotifyInteraction_CancelsInFlightReminderPlay()
+    {
+        var alertSound = new FakeAlertSoundService();
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        vm.NotifyInteraction();
+
+        Assert.True(alertSound.LastToken.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void Tick_ReminderSoundThrows_RaisesError()
+    {
+        var alertSound = new FakeAlertSoundService { Failure = new InvalidOperationException("boom") };
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        string? title = null;
+        string? message = null;
+        vm.ErrorOccurred += (t, m) => { title = t; message = m; };
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+
+        Assert.Equal("Reminder sound", title);
+        Assert.Equal("Failed to play the reminder sound: boom", message);
+    }
+
+    [Fact]
+    public async Task Tick_ReminderSoundFailureAfterSuspension_RaisesError()
+    {
+        var pending = new TaskCompletionSource<bool>();
+        var alertSound = new FakeAlertSoundService { PendingResult = pending };
+        var reminder = new ConfigReminder { Enabled = true, IntervalMinutes = 5 };
+        var vm = CreateViewModel(alertSound: alertSound, reminder: reminder);
+
+        var errorRaised = new TaskCompletionSource<string>();
+        vm.ErrorOccurred += (t, _) => errorRaised.TrySetResult(t);
+
+        AdvanceTime(TimeSpan.FromMinutes(6));
+        vm.Tick();
+        Assert.False(errorRaised.Task.IsCompleted);
+
+        pending.SetResult(false);
+
+        var title = await errorRaised.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Reminder sound", title);
     }
 
     // Integration tests (PlaintextTimeLogStore)

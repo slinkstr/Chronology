@@ -2,5 +2,5 @@ namespace Chronology.Services;
 
 public interface IAlertSoundService
 {
-    bool Play(string? soundFile);
+    Task<bool> PlayAsync(string? soundFile, int count, CancellationToken cancellationToken);
 }

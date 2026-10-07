@@ -131,9 +131,14 @@ public sealed class Config
         {
             throw new ConfigException($"Value '{minutes}' is out of range for 'reminder.intervalMinutes'.", ex);
         }
+        if (reminder.Count < 1)
+        {
+            throw new ConfigException("Invalid 'reminder.count' in config. Expected a positive count.");
+        }
 
         return new ConfigReminder
         {
+            Count           = reminder.Count,
             Enabled         = reminder.Enabled,
             IntervalMinutes = minutes,
             SoundFile       = ResolveSoundFile(reminder.SoundFile, configDirectory),
