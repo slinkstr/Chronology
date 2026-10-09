@@ -239,6 +239,28 @@ public class ConfigTests : IDisposable
     }
 
     [Fact]
+    public void Load_NullReminderFields_UseDefaults()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "reminder": {
+                "count": null,
+                "enabled": null,
+                "intervalMinutes": null,
+                "soundFile": null
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        AssertReminderMatches(new ConfigReminder(), config.Reminder);
+    }
+
+    [Fact]
     public void Load_StoreWithoutDataDirectory_UsesDefaultDirectory()
     {
         Directory.CreateDirectory(_tempDir);
@@ -252,6 +274,77 @@ public class ConfigTests : IDisposable
         var config = Config.Load(ConfigPath);
 
         Assert.Equal(new PlaintextTimeLogStore().DataDirectory, Assert.IsType<PlaintextTimeLogStore>(config.Store).DataDirectory);
+    }
+
+    [Fact]
+    public void Load_NullDataDirectory_UsesDefaultDirectory()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Plaintext",
+                "dataDirectory": null
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(new PlaintextTimeLogStore().DataDirectory, Assert.IsType<PlaintextTimeLogStore>(config.Store).DataDirectory);
+    }
+
+    [Fact]
+    public void Load_NullLegacyDataDirectory_UsesDefaultDirectory()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Legacy",
+                "dataDirectory": null
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(new LegacyTimeLogStore().DataDirectory, Assert.IsType<LegacyTimeLogStore>(config.Store).DataDirectory);
+    }
+
+    [Fact]
+    public void Load_EmptyDataDirectory_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Plaintext",
+                "dataDirectory": ""
+              }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("dataDirectory", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NullStoreType_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": null }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("store.type", ex.Message);
     }
 
     [Fact]
@@ -270,7 +363,7 @@ public class ConfigTests : IDisposable
     }
 
     [Fact]
-    public void Load_MissingStore_Throws()
+    public void Load_MissingStore_UsesDefaultStore()
     {
         Directory.CreateDirectory(_tempDir);
         File.WriteAllText(ConfigPath, """
@@ -279,11 +372,13 @@ public class ConfigTests : IDisposable
             }
             """);
 
-        Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        var config = Config.Load(ConfigPath);
+
+        Assert.IsType<PlaintextTimeLogStore>(config.Store);
     }
 
     [Fact]
-    public void Load_NullStore_LoadsWithoutStore()
+    public void Load_NullStore_UsesDefaultStore()
     {
         Directory.CreateDirectory(_tempDir);
         File.WriteAllText(ConfigPath, """
@@ -295,7 +390,21 @@ public class ConfigTests : IDisposable
 
         var config = Config.Load(ConfigPath);
 
-        Assert.Null(config.Store);
+        Assert.IsType<PlaintextTimeLogStore>(config.Store);
+    }
+
+    [Fact]
+    public void Load_NullVersion_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": null,
+              "store": { "type": "Plaintext" }
+            }
+            """);
+
+        Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
     }
 
     private static void AssertReminderMatches(ConfigReminder expected, ConfigReminder actual)

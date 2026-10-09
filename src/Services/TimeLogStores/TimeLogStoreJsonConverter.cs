@@ -14,7 +14,7 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object)
         {
-            throw new ConfigException("Invalid 'store' section in config. Expected an object or null.");
+            throw new ConfigException("Invalid 'store' section in config. Expected an object.");
         }
         if (!root.TryGetProperty(TypeKey, out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
         {
@@ -26,11 +26,11 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
         {
             if (typeName.Equals(PlaintextTimeLogStore.StoreName, StringComparison.OrdinalIgnoreCase))
             {
-                return root.Deserialize<PlaintextTimeLogStore>(options);
+                return DeserializeStore<PlaintextTimeLogStore>(root, options);
             }
             if (typeName.Equals(LegacyTimeLogStore.StoreName, StringComparison.OrdinalIgnoreCase))
             {
-                return root.Deserialize<LegacyTimeLogStore>(options);
+                return DeserializeStore<LegacyTimeLogStore>(root, options);
             }
         }
         catch (JsonException ex)
@@ -56,5 +56,16 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
             property.WriteTo(writer);
         }
         writer.WriteEndObject();
+    }
+
+    private static TStore DeserializeStore<TStore>(JsonElement root, JsonSerializerOptions options)
+        where TStore : class, IFileBackedStore
+    {
+        var store = root.Deserialize<TStore>(options);
+        if (store is null || string.IsNullOrWhiteSpace(store.DataDirectory))
+        {
+            throw new ConfigException("Missing or invalid 'store.dataDirectory' in config. Expected a non-empty directory path.");
+        }
+        return store;
     }
 }

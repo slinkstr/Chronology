@@ -28,7 +28,7 @@ public partial class MainViewModel : ViewModelBase
     private DateTime                 _lastTickAt;
     private ConfigReminder           _reminder;
     private CancellationTokenSource? _reminderSoundCts;
-    private ITimeLogStore?           _store;
+    private ITimeLogStore            _store;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -61,14 +61,14 @@ public partial class MainViewModel : ViewModelBase
     {
     }
 
-    internal MainViewModel(ITimeLogStore? store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now,
+    internal MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now,
         IAlertSoundService alertSound, ConfigReminder? reminder = null)
     {
         _alertSound      = alertSound;
         _store           = store;
         _stateStore      = stateStore;
         _reminder        = reminder ?? new ConfigReminder();
-        _activityHistory = activityHistory ?? (store != null ? new ActivityHistory(store, () => DateOnly.FromDateTime(now())) : null);
+        _activityHistory = activityHistory ?? new ActivityHistory(store, () => DateOnly.FromDateTime(now()));
         _now             = now;
         _currentDate     = DateOnly.FromDateTime(_now());
         _lastInteraction = _now();
@@ -200,21 +200,14 @@ public partial class MainViewModel : ViewModelBase
         {
             var activity = string.IsNullOrWhiteSpace(Activity) ? "(unattributed)" : Activity.Trim();
             Entries.Add(new TimeEntry(TimeOnly.FromDateTime(_now()), activity, elapsed));
-            if (_store is null)
+            try
             {
-                RaiseError("No store", "No time log store is configured.");
+                _store.Save(_currentDate, Entries);
+                InitializeFilePoll();
             }
-            else
+            catch (IOException ex)
             {
-                try
-                {
-                    _store.Save(_currentDate, Entries);
-                    InitializeFilePoll();
-                }
-                catch (IOException ex)
-                {
-                    RaiseError("File I/O error", $"Failed to save previous day: {ex.Message}");
-                }
+                RaiseError("File I/O error", $"Failed to save previous day: {ex.Message}");
             }
         }
 
@@ -266,10 +259,6 @@ public partial class MainViewModel : ViewModelBase
     private void LoadDay()
     {
         Entries.Clear();
-        if (_store is null)
-        {
-            return;
-        }
         try
         {
             foreach (var entry in _store.Load(_currentDate))
@@ -459,11 +448,11 @@ public partial class MainViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(TimeExpression))
         {
-            valueToLog = Quantize(elapsed, _store?.Precision ?? TimeSpan.Zero);
+            valueToLog = Quantize(elapsed, _store.Precision);
         }
         else if (TimeExpression.Trim() == FormatHMM(elapsed))
         {
-            valueToLog = Quantize(elapsed, _store?.Precision ?? TimeSpan.Zero);
+            valueToLog = Quantize(elapsed, _store.Precision);
         }
         else
         {
@@ -477,21 +466,14 @@ public partial class MainViewModel : ViewModelBase
 
         var entry = new TimeEntry(TimeOnly.FromDateTime(_now()), Activity.Trim(), valueToLog);
         Entries.Add(entry);
-        if (_store is null)
+        try
         {
-            RaiseError("No store", "No time log store is configured.");
+            _store.Save(_currentDate, Entries);
+            InitializeFilePoll();
         }
-        else
+        catch (IOException ex)
         {
-            try
-            {
-                _store.Save(_currentDate, Entries);
-                InitializeFilePoll();
-            }
-            catch (IOException ex)
-            {
-                RaiseError("File I/O error", $"Failed to save day file: {ex.Message}");
-            }
+            RaiseError("File I/O error", $"Failed to save day file: {ex.Message}");
         }
 
         _accumulatedClock = valueToLog >= elapsed ? TimeSpan.Zero : elapsed - valueToLog;
@@ -555,9 +537,7 @@ public partial class MainViewModel : ViewModelBase
 
         _store = config.Store;
         _reminder = config.Reminder;
-        _activityHistory = _store != null
-            ? new ActivityHistory(_store, () => DateOnly.FromDateTime(_now()))
-            : null;
+        _activityHistory = new ActivityHistory(_store, () => DateOnly.FromDateTime(_now()));
 
         LoadDay();
         _activityHistory?.Reload();

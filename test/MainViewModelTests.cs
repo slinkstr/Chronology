@@ -37,7 +37,7 @@ public class MainViewModelTests : IDisposable
             stateStore.Save(new AppState { Clock = initialClock });
         }
 
-        return new MainViewModel(null, stateStore, history, () => _virtualNow,
+        return new MainViewModel(new FakeTimeLogStore(), stateStore, history, () => _virtualNow,
             alertSound ?? new FakeAlertSoundService(), reminder);
     }
 

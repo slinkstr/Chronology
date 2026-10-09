@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Chronology.Services.TimeLogStores;
 
@@ -19,7 +20,7 @@ public sealed class Config
 
     public int            Version  { get; set; } = CurrentVersion;
     [JsonConverter(typeof(TimeLogStoreJsonConverter))]
-    public ITimeLogStore? Store    { get; set; } = new PlaintextTimeLogStore();
+    public ITimeLogStore  Store    { get; set; } = new PlaintextTimeLogStore();
     public ConfigReminder Reminder { get; set; } = new();
 
     public static Config Load()
@@ -51,18 +52,12 @@ public sealed class Config
 
         try
         {
-            using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
-            if (root.ValueKind == JsonValueKind.Object)
+            var root = JsonNode.Parse(json)
+                ?? throw new ConfigException("Config file is empty.");
+            StripNullMembers(root);
+            if (root is JsonObject rootObject && !rootObject.ContainsKey("version"))
             {
-                if (!root.TryGetProperty("version", out _))
-                {
-                    throw new ConfigException("Missing or invalid 'version' field in config.");
-                }
-                if (!root.TryGetProperty("store", out _))
-                {
-                    throw new ConfigException("Missing 'store' section in config.");
-                }
+                throw new ConfigException("Missing or invalid 'version' field in config.");
             }
             return root.Deserialize<Config>(JsonOptions)
                 ?? throw new ConfigException("Config file is empty.");
@@ -86,6 +81,36 @@ public sealed class Config
             Directory.CreateDirectory(directory);
         }
         File.WriteAllText(filePath, JsonSerializer.Serialize(new Config(), JsonOptions));
+    }
+
+    // Null == unset
+    private static void StripNullMembers(JsonNode node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var property in obj.ToList())
+                {
+                    if (property.Value is null)
+                    {
+                        obj.Remove(property.Key);
+                    }
+                    else
+                    {
+                        StripNullMembers(property.Value);
+                    }
+                }
+                break;
+            case JsonArray array:
+                foreach (var element in array)
+                {
+                    if (element is not null)
+                    {
+                        StripNullMembers(element);
+                    }
+                }
+                break;
+        }
     }
 
     private static string? ResolveSoundFile(string? configuredPath, string configDirectory)
