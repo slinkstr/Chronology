@@ -144,4 +144,25 @@ public class PlaintextTimeLogStoreTests : IDisposable
         Assert.Single(loaded);
         Assert.Equal("Fix bug", loaded[0].Activity);
     }
+
+    [Fact]
+    public void Validate_NormalActivity_ReturnsNull()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.Null(store.Validate("Fix bug"));
+    }
+
+    [Fact]
+    public void Validate_PipeInActivity_ReturnsError()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.NotNull(store.Validate("Foo | bar"));
+    }
+
+    [Fact]
+    public void Validate_NewlineInActivity_ReturnsError()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.NotNull(store.Validate("Foo\nbar"));
+    }
 }

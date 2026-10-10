@@ -168,6 +168,7 @@ public partial class MainViewModel : ViewModelBase
         {
             _activityCursor = -1;
         }
+        Error = _store.Validate(value) ?? "";
         RefreshNavigationCommands();
     }
 
@@ -185,7 +186,7 @@ public partial class MainViewModel : ViewModelBase
         return TimeSpan.FromTicks(ts.Ticks - ts.Ticks % precision.Ticks);
     }
 
-    private bool CanLog() => !string.IsNullOrWhiteSpace(Activity);
+    private bool CanLog() => !string.IsNullOrWhiteSpace(Activity) && _store.Validate(Activity) is null;
 
     private void CheckDayRollover()
     {
@@ -443,6 +444,13 @@ public partial class MainViewModel : ViewModelBase
     private void Log()
     {
         Error = "";
+        var validationError = _store.Validate(Activity);
+        if (validationError is not null)
+        {
+            Error = validationError;
+            return;
+        }
+
         var elapsed = CurrentClock;
         TimeSpan valueToLog;
 

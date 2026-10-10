@@ -178,4 +178,18 @@ public class LegacyTimeLogStoreTests : IDisposable
         var contents = store.Contents(new DateOnly(2026, 9, 4));
         Assert.Contains("Code review", contents);
     }
+
+    [Fact]
+    public void Validate_PipeInActivity_ReturnsNull()
+    {
+        var store = new LegacyTimeLogStore(_tempDir);
+        Assert.Null(store.Validate("Foo | bar"));
+    }
+
+    [Fact]
+    public void Validate_NewlineInActivity_ReturnsError()
+    {
+        var store = new LegacyTimeLogStore(_tempDir);
+        Assert.NotNull(store.Validate("Foo\nbar"));
+    }
 }

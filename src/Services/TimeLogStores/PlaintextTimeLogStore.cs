@@ -135,6 +135,19 @@ public class PlaintextTimeLogStore : IFileBackedStore
         Process.Start(new ProcessStartInfo(Path.GetFullPath(DataDirectory)) { UseShellExecute = true });
     }
 
+    public string? Validate(string activity)
+    {
+        if (activity.Contains('|'))
+        {
+            return "Activity cannot contain '|'.";
+        }
+        if (activity.Contains('\r') || activity.Contains('\n'))
+        {
+            return "Activity cannot contain line breaks.";
+        }
+        return null;
+    }
+
     private static string Format(DateOnly date, IEnumerable<TimeEntry> entries)
     {
         var sb = new StringBuilder();

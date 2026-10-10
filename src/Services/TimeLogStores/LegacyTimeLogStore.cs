@@ -141,6 +141,15 @@ public class LegacyTimeLogStore : IFileBackedStore
         Process.Start(new ProcessStartInfo(Path.GetFullPath(DataDirectory)) { UseShellExecute = true });
     }
 
+    public string? Validate(string activity)
+    {
+        if (activity.Contains('\r') || activity.Contains('\n'))
+        {
+            return "Activity cannot contain line breaks.";
+        }
+        return null;
+    }
+
     internal static string Format(DateOnly date, IEnumerable<TimeEntry> entries)
     {
         var sb = new StringBuilder();

@@ -196,6 +196,41 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Activity_InvalidChar_SetsError_DisablesLog()
+    {
+        var vm = CreateViewModelWithRealStore();
+        vm.Activity = "a|b";
+
+        Assert.NotEqual("", vm.Error);
+        Assert.False(vm.LogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Activity_InvalidThenFixed_ClearsError()
+    {
+        var vm = CreateViewModelWithRealStore();
+        vm.Activity = "a|b";
+        Assert.NotEqual("", vm.Error);
+
+        vm.Activity = "ab";
+        Assert.Equal("", vm.Error);
+    }
+
+    [Fact]
+    public void Log_InvalidActivity_NoCommit()
+    {
+        var vm = CreateViewModelWithRealStore();
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm.Tick();
+
+        vm.Activity = "a|b";
+        vm.LogCommand.Execute(null);
+
+        Assert.NotEqual("", vm.Error);
+        Assert.Empty(vm.Entries);
+    }
+
+    [Fact]
     public void Log_ClearsActivityAfterLog()
     {
         var vm = CreateViewModel();

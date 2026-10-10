@@ -20,4 +20,6 @@ internal sealed class FakeTimeLogStore : ITimeLogStore
     public void Save(DateOnly date, IEnumerable<TimeEntry> entries)
     {
     }
+
+    public string? Validate(string activity) => null;
 }
