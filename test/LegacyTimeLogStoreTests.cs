@@ -54,6 +54,20 @@ public class LegacyTimeLogStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_RoundTrip_PreservesWrappedActivity()
+    {
+        var store = new LegacyTimeLogStore(_tempDir);
+        var date = new DateOnly(2026, 9, 4);
+        var activity = "DEMO-1111 fixing that one really annoying bug where you input a time but instead of adding it subtracts.";
+
+        store.Save(date, [new TimeEntry(new TimeOnly(0, 0), activity, TimeSpan.FromMinutes(30))]);
+        var loaded = store.Load(date).ToList();
+
+        Assert.Single(loaded);
+        Assert.Equal(activity, loaded[0].Activity);
+    }
+
+    [Fact]
     public void GetAvailableDates_ParsesTimeLogFilenames()
     {
         Directory.CreateDirectory(_tempDir);

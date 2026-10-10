@@ -72,7 +72,7 @@ public class LegacyTimeLogStore : IFileBackedStore
             }
             else if (currentActivity != null && line.Length > IndentWidth)
             {
-                currentActivity += line[IndentWidth..].TrimEnd();
+                currentActivity += " " + line[IndentWidth..].TrimEnd();
             }
         }
 
