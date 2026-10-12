@@ -1,4 +1,5 @@
 using Chronology.Models;
+using Chronology.Services;
 using Chronology.Services.TimeLogStores;
 using Xunit;
 
@@ -191,6 +192,53 @@ public class LegacyTimeLogStoreTests : IDisposable
 
         var contents = store.Contents(new DateOnly(2026, 9, 4));
         Assert.Contains("Code review", contents);
+    }
+
+    [Fact]
+    public void Load_InvalidDurationField_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "TimeLog.20260905.txt");
+        File.WriteAllLines(path, [
+            "Time   Project                Activity Description (2026-09-05)",
+            "-----  --------------------   ----------------------------------------------------------------------",
+            "abcde  [GENERAL]              Bogus row",
+        ]);
+
+        var store = new LegacyTimeLogStore(_tempDir);
+        var ex = Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 5)).ToList());
+        Assert.Contains("line 3", ex.Message);
+        Assert.Contains("invalid duration", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NegativeDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "TimeLog.20260905.txt");
+        File.WriteAllLines(path, [
+            "Time   Project                Activity Description (2026-09-05)",
+            "-----  --------------------   ----------------------------------------------------------------------",
+            "-1.50  [GENERAL]              Bad row",
+        ]);
+
+        var store = new LegacyTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 5)).ToList());
+    }
+
+    [Fact]
+    public void Load_NonFiniteDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "TimeLog.20260905.txt");
+        File.WriteAllLines(path, [
+            "Time   Project                Activity Description (2026-09-05)",
+            "-----  --------------------   ----------------------------------------------------------------------",
+            "  NaN  [GENERAL]              Bad row",
+        ]);
+
+        var store = new LegacyTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 5)).ToList());
     }
 
     [Fact]

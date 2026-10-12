@@ -40,9 +40,12 @@ public class LegacyTimeLogStore : IFileBackedStore
         string? currentActivity = null;
         TimeSpan? currentDuration = null;
 
-        foreach (var line in lines)
+        for (var i = 0; i < lines.Length; i++)
         {
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('-'))
+            var line = lines[i];
+            var lineNumber = i + 1;
+
+            if (string.IsNullOrWhiteSpace(line) || line.All(ch => ch == '-' || char.IsWhiteSpace(ch)))
             {
                 continue;
             }
@@ -52,7 +55,8 @@ public class LegacyTimeLogStore : IFileBackedStore
                 continue;
             }
 
-            if (line.Length >= TimeWidth && TryParseTimeField(line[..TimeWidth], out var hours))
+            var field = line.Length >= TimeWidth ? line[..TimeWidth].Trim() : "";
+            if (field.Length > 0)
             {
                 if (currentDuration.HasValue && currentActivity != null)
                 {
@@ -65,6 +69,11 @@ public class LegacyTimeLogStore : IFileBackedStore
                 if (line.Length >= 27 && line[7..27].Trim() == "*TOTAL")
                 {
                     continue;
+                }
+
+                if (!TryParseTimeField(field, out var hours))
+                {
+                    throw new TimeLogFormatException(path, lineNumber, $"invalid duration '{field}'");
                 }
 
                 currentDuration = TimeSpan.FromHours(hours);
@@ -227,6 +236,8 @@ public class LegacyTimeLogStore : IFileBackedStore
         {
             return false;
         }
-        return double.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out hours);
+        return double.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out hours)
+            && double.IsFinite(hours)
+            && hours >= 0;
     }
 }
