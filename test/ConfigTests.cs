@@ -333,6 +333,64 @@ public class ConfigTests : IDisposable
     }
 
     [Fact]
+    public void Load_LegacyStoreWithDurationFormat_LoadsFormat()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Legacy",
+                "dataDirectory": "./timelog",
+                "durationFormat": "hhmm"
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(DurationFormat.Hhmm, Assert.IsType<LegacyTimeLogStore>(config.Store).DurationFormat);
+    }
+
+    [Fact]
+    public void Load_StoreWithoutDurationFormat_UsesStoreDefault()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Legacy",
+                "dataDirectory": "./timelog"
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(DurationFormat.Fractional, Assert.IsType<LegacyTimeLogStore>(config.Store).DurationFormat);
+    }
+
+    [Fact]
+    public void Load_InvalidDurationFormat_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": {
+                "type": "Legacy",
+                "dataDirectory": "./timelog",
+                "durationFormat": "Bogus"
+              }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("Failed to construct store", ex.Message);
+    }
+
+    [Fact]
     public void Load_NullStoreType_Throws()
     {
         Directory.CreateDirectory(_tempDir);

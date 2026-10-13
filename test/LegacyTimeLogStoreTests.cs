@@ -121,7 +121,7 @@ public class LegacyTimeLogStoreTests : IDisposable
             new(new TimeOnly(9, 0), "DEMO-1111 fixing that one really annoying bug where you input a time but instead of adding it subtracts.", TimeSpan.FromHours(0.27)),
         };
 
-        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 8), entries);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 8), entries, DurationFormat.Fractional);
 
         var expected = string.Join(Environment.NewLine, new[]
         {
@@ -154,7 +154,7 @@ public class LegacyTimeLogStoreTests : IDisposable
             new(new TimeOnly(9, 0), longActivity, TimeSpan.FromHours(1.00)),
         };
 
-        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), entries);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), entries, DurationFormat.Fractional);
         var lines = output.Split(Environment.NewLine);
 
         Assert.Equal(70, lines[2][30..].Length);
@@ -165,7 +165,7 @@ public class LegacyTimeLogStoreTests : IDisposable
     [Fact]
     public void Format_SeparatorLine_Is100Chars()
     {
-        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), []);
+        var output = LegacyTimeLogStore.Format(new DateOnly(2026, 9, 2), [], DurationFormat.Fractional);
         var lines = output.Split(Environment.NewLine);
 
         Assert.Equal(100, lines[1].Length);
@@ -192,6 +192,60 @@ public class LegacyTimeLogStoreTests : IDisposable
 
         var contents = store.Contents(new DateOnly(2026, 9, 4));
         Assert.Contains("Code review", contents);
+    }
+
+    [Fact]
+    public void Load_HmmDurationField_Parses()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "TimeLog.20260905.txt");
+        File.WriteAllLines(path, [
+            "Time   Project                Activity Description (2026-09-05)",
+            "-----  --------------------   ----------------------------------------------------------------------",
+            " 1:30  [GENERAL]              Fix bug",
+        ]);
+
+        var store = new LegacyTimeLogStore(_tempDir);
+        var loaded = store.Load(new DateOnly(2026, 9, 5)).ToList();
+
+        Assert.Single(loaded);
+        Assert.Equal(TimeSpan.FromMinutes(90), loaded[0].Duration);
+    }
+
+    [Fact]
+    public void SaveLoad_RoundTrip_HmmFormat_PreservesEntries()
+    {
+        var store = new LegacyTimeLogStore(_tempDir, DurationFormat.Hhmm);
+        var date = new DateOnly(2026, 9, 4);
+
+        store.Save(date, [new TimeEntry(new TimeOnly(0, 0), "Fix bug", TimeSpan.FromMinutes(90))]);
+
+        var text = File.ReadAllText(Path.Combine(_tempDir, "TimeLog.20260904.txt"));
+        Assert.Contains(" 1:30", text);
+
+        var loaded = store.Load(date).ToList();
+        Assert.Single(loaded);
+        Assert.Equal(TimeSpan.FromMinutes(90), loaded[0].Duration);
+        Assert.Equal("Fix bug", loaded[0].Activity);
+    }
+
+    [Fact]
+    public void Save_DurationOverflowingTimeField_Throws()
+    {
+        var store = new LegacyTimeLogStore(_tempDir, DurationFormat.Hhmm);
+        var entries = new List<TimeEntry>
+        {
+            new(new TimeOnly(0, 0), "Too long", TimeSpan.FromHours(100)),
+        };
+
+        Assert.Throws<InvalidOperationException>(() => store.Save(new DateOnly(2026, 9, 4), entries));
+    }
+
+    [Fact]
+    public void Precision_MatchesDurationFormat()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(1), new LegacyTimeLogStore(_tempDir, DurationFormat.Hhmm).Precision);
+        Assert.Equal(TimeSpan.FromHours(0.01), new LegacyTimeLogStore(_tempDir).Precision);
     }
 
     [Fact]

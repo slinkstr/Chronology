@@ -125,6 +125,53 @@ public class PlaintextTimeLogStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_DecimalDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-08",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug  | 1.5      |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 8)).ToList());
+    }
+
+    [Fact]
+    public void Load_NegativeDecimalDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug  | -1.5     |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 8)).ToList());
+    }
+
+    [Fact]
+    public void Load_NonFiniteDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug  | NaN      |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 8)).ToList());
+    }
+
+    [Fact]
     public void Load_NonTableLine_SkipsWithoutThrowing()
     {
         Directory.CreateDirectory(_tempDir);

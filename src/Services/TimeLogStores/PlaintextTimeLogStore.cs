@@ -72,7 +72,7 @@ public class PlaintextTimeLogStore : IFileBackedStore
             {
                 throw new TimeLogFormatException(path, lineNumber, $"invalid timestamp '{timestampStr}'");
             }
-            if (!TryParseHMM(durationStr, out var duration))
+            if (!DurationText.TryParseHhmm(durationStr, out var duration))
             {
                 throw new TimeLogFormatException(path, lineNumber, $"invalid duration '{durationStr}'");
             }
@@ -157,7 +157,7 @@ public class PlaintextTimeLogStore : IFileBackedStore
         sb.AppendLine($"| {new string('-', TimeWidth)} | {new string('-', ActivityWidth)} | {new string('-', DurationWidth)} |");
         foreach (var entry in entries)
         {
-            sb.AppendLine($"| {entry.Timestamp:HH:mm} | {entry.Activity,-ActivityWidth} | {FormatHMM(entry.Duration),-DurationWidth} |");
+            sb.AppendLine($"| {entry.Timestamp:HH:mm} | {entry.Activity,-ActivityWidth} | {DurationText.Format(entry.Duration, DurationFormat.Hhmm),-DurationWidth} |");
         }
         return sb.ToString();
     }
@@ -172,35 +172,4 @@ public class PlaintextTimeLogStore : IFileBackedStore
         return cells.All(c => c.Trim().All(ch => ch == '-'));
     }
 
-    private static string FormatHMM(TimeSpan ts)
-    {
-        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
-    }
-
-    private static bool TryParseHMM(string text, out TimeSpan result)
-    {
-        result = TimeSpan.Zero;
-        var span = text.AsSpan().Trim();
-        var colon = span.IndexOf(':');
-        if (colon < 0)
-        {
-            return false;
-        }
-
-        if (!int.TryParse(span[..colon], out var hours))
-        {
-            return false;
-        }
-        if (!int.TryParse(span[(colon + 1)..], out var minutes))
-        {
-            return false;
-        }
-        if (hours < 0 || minutes < 0 || minutes >= 60)
-        {
-            return false;
-        }
-
-        result = new TimeSpan(hours, minutes, 0);
-        return true;
-    }
 }

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using System.Text.Json.Serialization;
 using Chronology.Models;
@@ -10,7 +9,8 @@ public class LegacyTimeLogStore : IFileBackedStore
 {
     public const string StoreName = "Legacy";
 
-    public string DataDirectory { get; }
+    public string         DataDirectory  { get; }
+    public DurationFormat DurationFormat { get; }
 
     private const int    TimeWidth     = 5;
     private const int    ProjectWidth  = 20;
@@ -20,13 +20,14 @@ public class LegacyTimeLogStore : IFileBackedStore
     private const int    IndentWidth   = 30;
     private const string FilePrefix    = "TimeLog.";
 
-    public LegacyTimeLogStore(string dataDirectory = "./timelog")
+    public LegacyTimeLogStore(string dataDirectory = "./timelog", DurationFormat durationFormat = DurationFormat.Fractional)
     {
-        DataDirectory = dataDirectory;
+        DataDirectory  = dataDirectory;
+        DurationFormat = durationFormat;
     }
 
     [JsonIgnore]
-    public TimeSpan Precision => TimeSpan.FromHours(0.01);
+    public TimeSpan Precision => DurationFormat == DurationFormat.Hhmm ? TimeSpan.FromMinutes(1) : TimeSpan.FromHours(0.01);
 
     public IEnumerable<TimeEntry> Load(DateOnly date)
     {
@@ -71,12 +72,12 @@ public class LegacyTimeLogStore : IFileBackedStore
                     continue;
                 }
 
-                if (!TryParseTimeField(field, out var hours))
+                if (!DurationText.TryParse(field, out var duration))
                 {
                     throw new TimeLogFormatException(path, lineNumber, $"invalid duration '{field}'");
                 }
 
-                currentDuration = TimeSpan.FromHours(hours);
+                currentDuration = duration;
                 currentActivity = line.Length > IndentWidth ? line[IndentWidth..].TrimEnd() : "";
             }
             else if (currentActivity != null && line.Length > IndentWidth)
@@ -95,7 +96,7 @@ public class LegacyTimeLogStore : IFileBackedStore
     {
         Directory.CreateDirectory(DataDirectory);
         var path = GetFilePath(date);
-        File.WriteAllText(path, Format(date, entries));
+        File.WriteAllText(path, Format(date, entries, DurationFormat));
     }
 
     public IEnumerable<DateOnly> GetAvailableDates()
@@ -123,7 +124,7 @@ public class LegacyTimeLogStore : IFileBackedStore
     public string Contents(DateOnly date)
     {
         var path = GetFilePath(date);
-        return File.Exists(path) ? File.ReadAllText(path) : Format(date, []);
+        return File.Exists(path) ? File.ReadAllText(path) : Format(date, [], DurationFormat);
     }
 
     public string GetFilePath(DateOnly date)
@@ -159,7 +160,7 @@ public class LegacyTimeLogStore : IFileBackedStore
         return null;
     }
 
-    internal static string Format(DateOnly date, IEnumerable<TimeEntry> entries)
+    internal static string Format(DateOnly date, IEnumerable<TimeEntry> entries, DurationFormat durationFormat)
     {
         var sb = new StringBuilder();
         var entryList = entries.ToList();
@@ -171,11 +172,11 @@ public class LegacyTimeLogStore : IFileBackedStore
         foreach (var entry in entryList)
         {
             total += entry.Duration;
-            AppendDataRow(sb, entry.Duration, "[GENERAL]", entry.Activity);
+            AppendDataRow(sb, entry.Duration, "[GENERAL]", entry.Activity, durationFormat);
         }
 
         AppendSeparator(sb);
-        AppendDataRow(sb, total, "*TOTAL", "Total time spent on work related activities.");
+        AppendDataRow(sb, total, "*TOTAL", "Total time spent on work related activities.", durationFormat);
         AppendSeparator(sb);
 
         return sb.ToString();
@@ -186,9 +187,14 @@ public class LegacyTimeLogStore : IFileBackedStore
         sb.AppendLine($"{new string('-', TimeWidth)}{Gap}{new string('-', ProjectWidth)}{Gap2}{new string('-', ActivityWidth)}");
     }
 
-    private static void AppendDataRow(StringBuilder sb, TimeSpan duration, string project, string activity)
+    private static void AppendDataRow(StringBuilder sb, TimeSpan duration, string project, string activity, DurationFormat durationFormat)
     {
-        var timeField = duration.TotalHours.ToString("F2").PadLeft(TimeWidth);
+        var timeText = DurationText.Format(duration, durationFormat);
+        if (timeText.Length > TimeWidth)
+        {
+            throw new InvalidOperationException($"Duration '{timeText}' longer than {TimeWidth}.");
+        }
+        var timeField = timeText.PadLeft(TimeWidth);
         var projectField = project.PadRight(ProjectWidth);
         var prefix = $"{timeField}{Gap}{projectField}{Gap2}";
         var indent = new string(' ', IndentWidth);
@@ -226,18 +232,5 @@ public class LegacyTimeLogStore : IFileBackedStore
 
         var breakAt = text.LastIndexOf(' ', width - 1, width);
         return breakAt > 0 ? text[..breakAt] : text[..width];
-    }
-
-    private static bool TryParseTimeField(string field, out double hours)
-    {
-        hours = 0;
-        var trimmed = field.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return false;
-        }
-        return double.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out hours)
-            && double.IsFinite(hours)
-            && hours >= 0;
     }
 }
