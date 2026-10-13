@@ -29,6 +29,7 @@ public partial class MainViewModel : ViewModelBase
     private ConfigReminder           _reminder;
     private CancellationTokenSource? _reminderSoundCts;
     private ITimeLogStore            _store;
+    private DateTime?                _timeFieldBlurredAt;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -44,6 +45,7 @@ public partial class MainViewModel : ViewModelBase
     private string _error = "";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LogCommand))]
     private string _timeExpression = "";
 
     [ObservableProperty]
@@ -118,12 +120,13 @@ public partial class MainViewModel : ViewModelBase
     public void OnTimeFieldGotFocus()
     {
         _isTimeFieldFocused = true;
+        _timeFieldBlurredAt = null;
     }
 
     public void OnTimeFieldLostFocus()
     {
         _isTimeFieldFocused = false;
-        RefreshTimeDisplay();
+        _timeFieldBlurredAt = _now();
     }
 
     public void Tick()
@@ -132,11 +135,13 @@ public partial class MainViewModel : ViewModelBase
         PollDayFile();
         CheckReminder();
 
-        if (!_isTimeFieldFocused)
+        var inBlurGrace = _timeFieldBlurredAt is DateTime blurredAt && _now() - blurredAt < TimeSpan.FromSeconds(2);
+        if (!_isTimeFieldFocused && !inBlurGrace)
         {
             RefreshTimeDisplay();
         }
         UpdateTotalDisplay();
+        LogCommand.NotifyCanExecuteChanged();
 
         if (_now() - _lastStateSave >= TimeSpan.FromMinutes(1))
         {
@@ -186,7 +191,15 @@ public partial class MainViewModel : ViewModelBase
         return TimeSpan.FromTicks(ts.Ticks - ts.Ticks % precision.Ticks);
     }
 
-    private bool CanLog() => !string.IsNullOrWhiteSpace(Activity) && _store.Validate(Activity) is null;
+    private bool CanLog()
+    {
+        if (string.IsNullOrWhiteSpace(Activity) || _store.Validate(Activity) is not null)
+        {
+            return false;
+        }
+        var resolved = ResolveLogValue(CurrentClock);
+        return resolved is null || resolved > TimeSpan.Zero;
+    }
 
     private void CheckDayRollover()
     {
@@ -370,6 +383,15 @@ public partial class MainViewModel : ViewModelBase
         TimeExpression = FormatHMM(CurrentClock);
     }
 
+    private TimeSpan? ResolveLogValue(TimeSpan elapsed)
+    {
+        if (string.IsNullOrWhiteSpace(TimeExpression) || TimeExpression.Trim() == FormatHMM(elapsed))
+        {
+            return Quantize(elapsed, _store.Precision);
+        }
+        return TimeExpressionParser.TryParse(TimeExpression, out var parsed) ? parsed : null;
+    }
+
     private void SetActivityFromCursor(IReadOnlyList<string> history)
     {
         _isNavigating = true;
@@ -452,24 +474,18 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var elapsed = CurrentClock;
-        TimeSpan valueToLog;
+        var resolved = ResolveLogValue(elapsed);
+        if (resolved is null)
+        {
+            Error = "Invalid time expression";
+            return;
+        }
+        var valueToLog = resolved.Value;
 
-        if (string.IsNullOrWhiteSpace(TimeExpression))
+        if (valueToLog <= TimeSpan.Zero)
         {
-            valueToLog = Quantize(elapsed, _store.Precision);
-        }
-        else if (TimeExpression.Trim() == FormatHMM(elapsed))
-        {
-            valueToLog = Quantize(elapsed, _store.Precision);
-        }
-        else
-        {
-            if (!TimeExpressionParser.TryParse(TimeExpression, out var parsed))
-            {
-                Error = "Invalid time expression";
-                return;
-            }
-            valueToLog = parsed;
+            Error = "Duration must be greater than zero.";
+            return;
         }
 
         var entry = new TimeEntry(TimeOnly.FromDateTime(_now()), Activity.Trim(), valueToLog);

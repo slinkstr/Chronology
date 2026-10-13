@@ -86,7 +86,38 @@ public class MainViewModelTests : IDisposable
     public void LogCommand_WithActivity_CanExecute()
     {
         var vm = CreateViewModel();
+        AdvanceTime(TimeSpan.FromMinutes(5));
+        vm.Tick();
         vm.Activity = "Fix bug";
+        Assert.True(vm.LogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void LogCommand_ZeroClock_CannotExecute()
+    {
+        var vm = CreateViewModel();
+        vm.Activity = "Fix bug";
+        Assert.False(vm.LogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void LogCommand_ManualExpressionAtZeroClock_CanExecute()
+    {
+        var vm = CreateViewModel();
+        vm.Activity = "Fix bug";
+        vm.TimeExpression = "0:10";
+        Assert.True(vm.LogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void LogCommand_ClockAdvances_BecomesEnabled()
+    {
+        var vm = CreateViewModel();
+        vm.Activity = "Fix bug";
+        Assert.False(vm.LogCommand.CanExecute(null));
+
+        AdvanceTime(TimeSpan.FromMinutes(1));
+        vm.Tick();
         Assert.True(vm.LogCommand.CanExecute(null));
     }
 
@@ -314,7 +345,7 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void OnTimeFieldLostFocus_ResumesTicking()
+    public void OnTimeFieldLostFocus_KeepsEditUntilGraceExpires()
     {
         var vm = CreateViewModel();
         AdvanceTime(TimeSpan.FromMinutes(5));
@@ -325,7 +356,73 @@ public class MainViewModelTests : IDisposable
         Assert.Equal("editing", vm.TimeExpression);
 
         vm.OnTimeFieldLostFocus();
+        AdvanceTime(TimeSpan.FromSeconds(1));
+        vm.Tick();
+        Assert.Equal("editing", vm.TimeExpression);
+
+        AdvanceTime(TimeSpan.FromSeconds(2));
+        vm.Tick();
         Assert.Equal("0:08", vm.TimeExpression);
+    }
+
+    [Fact]
+    public void Log_AfterTimeFieldBlur_UsesEditedValue()
+    {
+        var vm = CreateViewModel();
+        vm.OnTimeFieldGotFocus();
+        vm.TimeExpression = "0:10";
+        vm.OnTimeFieldLostFocus();
+
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        Assert.Single(vm.Entries);
+        Assert.Equal(TimeSpan.FromMinutes(10), vm.Entries[0].Duration);
+    }
+
+    [Fact]
+    public void Log_AfterBlurTickWithinGrace_UsesEditedValue()
+    {
+        var vm = CreateViewModel();
+        vm.OnTimeFieldGotFocus();
+        vm.TimeExpression = "0:10";
+        vm.OnTimeFieldLostFocus();
+
+        AdvanceTime(TimeSpan.FromSeconds(1));
+        vm.Tick();
+
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        Assert.Single(vm.Entries);
+        Assert.Equal(TimeSpan.FromMinutes(10), vm.Entries[0].Duration);
+    }
+
+    [Fact]
+    public void Log_ZeroClock_SetsError_NoCommit()
+    {
+        var vm = CreateViewModel();
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        Assert.NotEqual("", vm.Error);
+        Assert.Empty(vm.Entries);
+    }
+
+    [Fact]
+    public void Log_ZeroExpression_SetsError_NoCommit()
+    {
+        var vm = CreateViewModel();
+        AdvanceTime(TimeSpan.FromMinutes(37));
+        vm.Tick();
+
+        vm.Activity = "Fix bug";
+        vm.TimeExpression = "0:00";
+        vm.LogCommand.Execute(null);
+
+        Assert.NotEqual("", vm.Error);
+        Assert.Empty(vm.Entries);
+        Assert.Equal(TimeSpan.FromMinutes(37), vm.CurrentClock);
     }
 
     [Fact]
@@ -345,6 +442,8 @@ public class MainViewModelTests : IDisposable
 
         vm.Activity = "First";
         vm.LogCommand.Execute(null);
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        vm.Tick();
         vm.Activity = "Second";
         vm.LogCommand.Execute(null);
 
@@ -361,6 +460,8 @@ public class MainViewModelTests : IDisposable
 
         vm.Activity = "First";
         vm.LogCommand.Execute(null);
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        vm.Tick();
         vm.Activity = "Second";
         vm.LogCommand.Execute(null);
 
@@ -379,6 +480,8 @@ public class MainViewModelTests : IDisposable
 
         vm.Activity = "First";
         vm.LogCommand.Execute(null);
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        vm.Tick();
         vm.Activity = "Second";
         vm.LogCommand.Execute(null);
 
@@ -416,6 +519,8 @@ public class MainViewModelTests : IDisposable
 
         vm.Activity = "First";
         vm.LogCommand.Execute(null);
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        vm.Tick();
         vm.Activity = "Second";
         vm.LogCommand.Execute(null);
 
@@ -1032,6 +1137,7 @@ public class MainViewModelTests : IDisposable
 
         var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         AdvanceTime(TimeSpan.FromMinutes(15));
+        vm.Tick();
 
         vm.Activity = "New task";
         vm.LogCommand.Execute(null);

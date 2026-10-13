@@ -85,6 +85,20 @@ public partial class MainWindow : Window
         (DataContext as MainViewModel)?.NotifyClosing();
     }
 
+    private void OnLogFieldKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is AutoCompleteBox { IsDropDownOpen: true })
+        {
+            return;
+        }
+        if (DataContext is MainViewModel vm && vm.LogCommand.CanExecute(null))
+        {
+            vm.LogCommand.Execute(null);
+            ActivityField?.Focus();
+            e.Handled = true;
+        }
+    }
+
     private void OnTimeFieldGotFocus(object? sender, RoutedEventArgs e)
     {
         (DataContext as MainViewModel)?.OnTimeFieldGotFocus();
