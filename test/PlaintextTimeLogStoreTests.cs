@@ -64,6 +64,21 @@ public class PlaintextTimeLogStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_WritesTotalCommentLine()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var date = new DateOnly(2026, 9, 4);
+        store.Save(date, [
+            new TimeEntry(new TimeOnly(9, 0), "Fix bug", TimeSpan.FromMinutes(48)),
+            new TimeEntry(new TimeOnly(10, 15), "Review", TimeSpan.FromMinutes(30)),
+        ]);
+
+        var lines = File.ReadAllLines(Path.Combine(_tempDir, "2026-09-04.txt"));
+        Assert.Equal("", lines[^2]);
+        Assert.Equal("# Total: 1:18", lines[^1]);
+    }
+
+    [Fact]
     public void Load_SkipsCommentsAndBlankLines()
     {
         Directory.CreateDirectory(_tempDir);
@@ -84,6 +99,27 @@ public class PlaintextTimeLogStoreTests : IDisposable
         Assert.Equal(2, loaded.Count);
         Assert.Equal("Fix bug", loaded[0].Activity);
         Assert.Equal("Review", loaded[1].Activity);
+    }
+
+    [Fact]
+    public void Load_SkipsTotalCommentLine()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "# Chronology log - 2026-09-08",
+            "",
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug | 0:48     |",
+            "# Total: 0:48",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var loaded = store.Load(new DateOnly(2026, 9, 8)).ToList();
+
+        Assert.Single(loaded);
+        Assert.Equal("Fix bug", loaded[0].Activity);
     }
 
     [Fact]

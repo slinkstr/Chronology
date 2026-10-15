@@ -155,10 +155,14 @@ public class PlaintextTimeLogStore : IFileBackedStore
         sb.AppendLine();
         sb.AppendLine($"| {"Time",-TimeWidth} | {"Activity",-ActivityWidth} | {"Duration",-DurationWidth} |");
         sb.AppendLine($"| {new string('-', TimeWidth)} | {new string('-', ActivityWidth)} | {new string('-', DurationWidth)} |");
+        var total = TimeSpan.Zero;
         foreach (var entry in entries)
         {
+            total += entry.Duration;
             sb.AppendLine($"| {entry.Timestamp:HH:mm} | {entry.Activity,-ActivityWidth} | {DurationText.Format(entry.Duration, DurationFormat.Hhmm),-DurationWidth} |");
         }
+        sb.AppendLine();
+        sb.AppendLine($"# Total: {DurationText.Format(total, DurationFormat.Hhmm)}");
         return sb.ToString();
     }
 
