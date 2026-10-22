@@ -23,7 +23,7 @@
     </Window.Styles>
 
     <DockPanel>
-        <Menu DockPanel.Dock="Top" HorizontalAlignment="Stretch">
+        <Menu x:Name="MenuBar" DockPanel.Dock="Top" HorizontalAlignment="Stretch">
             <MenuItem x:Name="FileMenu" Header="_File">
                 <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}"
                           IsVisible="{Binding HasFileBackend}" />
