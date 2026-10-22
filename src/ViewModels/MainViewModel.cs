@@ -210,6 +210,7 @@ public partial class MainViewModel : ViewModelBase
         var state = new AppState
         {
             Clock = CurrentClock,
+            ClockDate = _currentDate,
             Activity = Activity,
         };
         try
@@ -332,7 +333,7 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var state = _stateStore.Load();
-            _accumulatedClock = state.Clock;
+            _accumulatedClock = state.ClockDate == _currentDate ? state.Clock : TimeSpan.Zero;
             Activity = state.Activity;
         }
         catch (IOException ex)

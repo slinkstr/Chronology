@@ -36,9 +36,9 @@ public class AppStateStore
 
 public class AppState
 {
-    public long ClockTicks { get; set; }
-
-    public string Activity { get; set; } = "";
+    public string   Activity   { get; set; } = "";
+    public DateOnly ClockDate  { get; set; }
+    public long     ClockTicks { get; set; }
 
     [JsonIgnore]
     public TimeSpan Clock

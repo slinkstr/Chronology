@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Chronology.Models;
 using Chronology.Services;
 using Chronology.Services.Config;
@@ -34,7 +35,7 @@ public class MainViewModelTests : IDisposable
 
         if (initialClock != default)
         {
-            stateStore.Save(new AppState { Clock = initialClock });
+            stateStore.Save(new AppState { Clock = initialClock, ClockDate = DateOnly.FromDateTime(_virtualNow) });
         }
 
         return new MainViewModel(effectiveStore, stateStore, history, () => _virtualNow, alertSound ?? new FakeAlertSoundService(), reminder);
@@ -48,7 +49,7 @@ public class MainViewModelTests : IDisposable
 
         if (initialClock != default)
         {
-            stateStore.Save(new AppState { Clock = initialClock });
+            stateStore.Save(new AppState { Clock = initialClock, ClockDate = DateOnly.FromDateTime(_virtualNow) });
         }
 
         return new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
@@ -72,6 +73,30 @@ public class MainViewModelTests : IDisposable
         var vm = CreateViewModel(initialClock: TimeSpan.FromMinutes(37));
         Assert.Equal(TimeSpan.FromMinutes(37), vm.CurrentClock);
         Assert.Equal("0:37", vm.TimeExpression);
+    }
+
+    [Fact]
+    public void Constructor_PersistedClockFromPreviousDay_ResetsClock()
+    {
+        var stateStore = new AppStateStore(_tempDir);
+        stateStore.Save(new AppState { Clock = TimeSpan.FromMinutes(30), ClockDate = new DateOnly(2026, 9, 3), Activity = "Old task" });
+
+        var vm = CreateViewModel();
+
+        Assert.Equal(TimeSpan.Zero, vm.CurrentClock);
+        Assert.Equal("Old task", vm.Activity);
+    }
+
+    [Fact]
+    public void Constructor_StateFileWithoutClockDate_ResetsClock()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var json = JsonSerializer.Serialize(new { ClockTicks = TimeSpan.FromMinutes(30).Ticks, Activity = "Old task" });
+        File.WriteAllText(Path.Combine(_tempDir, "state.json"), json);
+
+        var vm = CreateViewModel();
+
+        Assert.Equal(TimeSpan.Zero, vm.CurrentClock);
     }
 
     [Fact]
@@ -808,6 +833,24 @@ public class MainViewModelTests : IDisposable
 
         var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
         Assert.Equal(TimeSpan.FromMinutes(30), vm2.CurrentClock);
+    }
+
+    [Fact]
+    public void StatePersistence_ClockResetOnReopenNextDay()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+
+        var vm1 = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm1.Tick();
+        vm1.SaveState();
+
+        AdvanceTime(TimeSpan.FromDays(1));
+
+        var vm2 = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        Assert.Equal(TimeSpan.Zero, vm2.CurrentClock);
     }
 
     [Fact]
