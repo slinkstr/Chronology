@@ -52,7 +52,7 @@ public class ActivityHistory
                 .OrderByDescending(d => d)
                 .ToList();
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return;
         }
@@ -64,11 +64,7 @@ public class ActivityHistory
             {
                 entries = _store.Load(date).ToList();
             }
-            catch (IOException)
-            {
-                continue;
-            }
-            catch (TimeLogFormatException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TimeLogFormatException)
             {
                 continue;
             }

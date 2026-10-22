@@ -55,6 +55,7 @@ public partial class MainViewModel : ViewModelBase
     public List<TimeEntry>               Entries          { get; } = [];
     public bool                          HasFileBackend   => _store is IFileBackedStore;
     public ObservableCollection<string>  RecentActivities { get; } = [];
+    public DateOnly                      Today            => _currentDate;
 
     public event Action<string, string>? ErrorOccurred;
 
@@ -63,8 +64,7 @@ public partial class MainViewModel : ViewModelBase
     {
     }
 
-    internal MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now,
-        IAlertSoundService alertSound, ConfigReminder? reminder = null)
+    internal MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now, IAlertSoundService alertSound, ConfigReminder? reminder = null)
     {
         _alertSound      = alertSound;
         _store           = store;
@@ -104,6 +104,56 @@ public partial class MainViewModel : ViewModelBase
     public string GetTimelogText()
     {
         return (_store as IFileBackedStore)?.Contents(_currentDate) ?? "";
+    }
+
+    public async Task<bool> MarkSpecialDayAsync(DateOnly date, string activity, TimeSpan duration, Func<int, Task<bool>> confirmAppend)
+    {
+        var name = activity.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            RaiseError("Invalid activity", "Activity cannot be empty.");
+            return false;
+        }
+        if (_store.Validate(name) is { } validationError)
+        {
+            RaiseError("Invalid activity", validationError);
+            return false;
+        }
+        if (duration <= TimeSpan.Zero)
+        {
+            RaiseError("Invalid duration", "Duration must be greater than zero.");
+            return false;
+        }
+
+        if (!TryLoadDayEntries(date, out var existing))
+        {
+            return false;
+        }
+        if (existing.Count > 0 && !await confirmAppend(existing.Count))
+        {
+            return false;
+        }
+
+        // The file may have changed while the confirmation dialog was open
+        if (!TryLoadDayEntries(date, out existing))
+        {
+            return false;
+        }
+        existing.Add(new TimeEntry(TimeOnly.MinValue, name, duration));
+        if (!TrySaveDay(date, existing, "Failed to save day file"))
+        {
+            return false;
+        }
+
+        if (date == _currentDate)
+        {
+            LoadDay();
+            UpdateTotalDisplay();
+            InitializeFilePoll();
+        }
+        _activityHistory?.AddActivity(name);
+        RefreshRecentActivities();
+        return true;
     }
 
     public void NotifyClosing()
@@ -150,6 +200,11 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    public string? ValidateActivity(string activity)
+    {
+        return _store.Validate(activity);
+    }
+
     internal void SaveState()
     {
         var state = new AppState
@@ -175,11 +230,6 @@ public partial class MainViewModel : ViewModelBase
         }
         Error = _store.Validate(value) ?? "";
         RefreshNavigationCommands();
-    }
-
-    private static string FormatHMM(TimeSpan ts)
-    {
-        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}";
     }
 
     private static TimeSpan Quantize(TimeSpan ts, TimeSpan precision)
@@ -214,14 +264,9 @@ public partial class MainViewModel : ViewModelBase
         {
             var activity = string.IsNullOrWhiteSpace(Activity) ? "(unattributed)" : Activity.Trim();
             Entries.Add(new TimeEntry(TimeOnly.FromDateTime(_now()), activity, elapsed));
-            try
+            if (TrySaveDay(_currentDate, Entries, "Failed to save previous day"))
             {
-                _store.Save(_currentDate, Entries);
                 InitializeFilePoll();
-            }
-            catch (IOException ex)
-            {
-                RaiseError("File I/O error", $"Failed to save previous day: {ex.Message}");
             }
         }
 
@@ -273,22 +318,12 @@ public partial class MainViewModel : ViewModelBase
     private void LoadDay()
     {
         Entries.Clear();
-        try
+        if (TryLoadDayEntries(_currentDate, out var entries))
         {
-            foreach (var entry in _store.Load(_currentDate))
+            foreach (var entry in entries)
             {
                 Entries.Add(entry);
             }
-        }
-        catch (TimeLogFormatException ex)
-        {
-            Entries.Clear();
-            RaiseError("Malformed day file", ex.Message);
-        }
-        catch (IOException ex)
-        {
-            Entries.Clear();
-            RaiseError("File I/O error", $"Failed to read day file: {ex.Message}");
         }
     }
 
@@ -380,12 +415,12 @@ public partial class MainViewModel : ViewModelBase
 
     private void RefreshTimeDisplay()
     {
-        TimeExpression = FormatHMM(CurrentClock);
+        TimeExpression = DurationText.Format(CurrentClock, DurationFormat.Hhmm);
     }
 
     private TimeSpan? ResolveLogValue(TimeSpan elapsed)
     {
-        if (string.IsNullOrWhiteSpace(TimeExpression) || TimeExpression.Trim() == FormatHMM(elapsed))
+        if (string.IsNullOrWhiteSpace(TimeExpression) || TimeExpression.Trim() == DurationText.Format(elapsed, DurationFormat.Hhmm))
         {
             return Quantize(elapsed, _store.Precision);
         }
@@ -400,6 +435,43 @@ public partial class MainViewModel : ViewModelBase
         RefreshNavigationCommands();
     }
 
+    private bool TryLoadDayEntries(DateOnly date, out List<TimeEntry> entries)
+    {
+        try
+        {
+            entries = _store.Load(date).ToList();
+            return true;
+        }
+        catch (TimeLogFormatException ex)
+        {
+            RaiseError("Malformed day file", ex.Message);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            RaiseError("File I/O error", $"Failed to read day file: {ex.Message}");
+        }
+        entries = [];
+        return false;
+    }
+
+    private bool TrySaveDay(DateOnly date, IEnumerable<TimeEntry> entries, string ioError)
+    {
+        try
+        {
+            _store.Save(date, entries);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            RaiseError("File I/O error", $"{ioError}: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            RaiseError("Invalid duration", ex.Message);
+        }
+        return false;
+    }
+
     private void UpdateTotalDisplay()
     {
         var logged = TimeSpan.Zero;
@@ -408,7 +480,7 @@ public partial class MainViewModel : ViewModelBase
             logged += e.Duration;
         }
         var total = logged + CurrentClock;
-        TotalDisplay = $"{(int)total.TotalHours}:{total.Minutes:D2}";
+        TotalDisplay = DurationText.Format(total, DurationFormat.Hhmm);
     }
 
     [RelayCommand]
@@ -490,14 +562,9 @@ public partial class MainViewModel : ViewModelBase
 
         var entry = new TimeEntry(TimeOnly.FromDateTime(_now()), Activity.Trim(), valueToLog);
         Entries.Add(entry);
-        try
+        if (TrySaveDay(_currentDate, Entries, "Failed to save day file"))
         {
-            _store.Save(_currentDate, Entries);
             InitializeFilePoll();
-        }
-        catch (IOException ex)
-        {
-            RaiseError("File I/O error", $"Failed to save day file: {ex.Message}");
         }
 
         _accumulatedClock = valueToLog >= elapsed ? TimeSpan.Zero : elapsed - valueToLog;

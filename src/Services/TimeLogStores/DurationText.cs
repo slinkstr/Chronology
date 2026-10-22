@@ -42,7 +42,12 @@ internal static class DurationText
             return false;
         }
 
-        result = new TimeSpan(hours, minutes, 0);
+        var totalMinutes = (double)hours * 60 + minutes;
+        if (totalMinutes > TimeSpan.MaxValue.TotalMinutes)
+        {
+            return false;
+        }
+        result = TimeSpan.FromMinutes(totalMinutes);
         return true;
     }
 

@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Chronology.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="200"
+        x:Class="Chronology.Views.MarkSpecialDayWindow"
+        x:DataType="vm:MarkSpecialDayViewModel"
+        Title="Mark special day"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="16" Spacing="8">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+              ColumnDefinitions="60,*,Auto"
+              RowSpacing="6"
+              ColumnSpacing="8">
+
+            <Label Grid.Row="0" Grid.Column="0" Content="Date" VerticalAlignment="Center" />
+            <CalendarDatePicker Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                SelectedDate="{Binding Date}" />
+
+            <Label Grid.Row="1" Grid.Column="0" Content="Type" VerticalAlignment="Center" />
+            <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                      x:Name="TypeField"
+                      IsEditable="True"
+                      Text="{Binding TypeName}"
+                      ItemsSource="{Binding TypePresets}"
+                      KeyDown="OnFieldKeyDown" />
+
+            <Label Grid.Row="2" Grid.Column="0" Content="Time" VerticalAlignment="Center" />
+            <TextBox Grid.Row="2" Grid.Column="1"
+                     Text="{Binding TimeExpression}"
+                     KeyDown="OnFieldKeyDown"
+                     Classes="monospace" />
+            <TextBlock Grid.Row="2" Grid.Column="2"
+                       Text="{Binding ParsedDurationDisplay}"
+                       VerticalAlignment="Center"
+                       Classes="monospace" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                       Text="{Binding Error}"
+                       Foreground="OrangeRed"
+                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Mark"
+                    IsEnabled="{Binding CanConfirm}"
+                    Click="OnMark" />
+            <Button Content="Cancel" Click="OnCancel" />
+        </StackPanel>
+    </StackPanel>
+</Window>

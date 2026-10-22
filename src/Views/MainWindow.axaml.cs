@@ -2,7 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Reactive;
 using Avalonia.Threading;
+using Chronology.Services.TimeLogStores;
 using Chronology.ViewModels;
 
 namespace Chronology.Views;
@@ -10,6 +12,7 @@ namespace Chronology.Views;
 public partial class MainWindow : Window
 {
     private DispatcherTimer? _timer;
+    private IDisposable[]    _inputSubscriptions = [];
 
     public MainWindow()
     {
@@ -20,6 +23,7 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object? sender, EventArgs e)
     {
+        _timer?.Stop();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => (DataContext as MainViewModel)?.Tick();
         _timer.Start();
@@ -32,10 +36,8 @@ public partial class MainWindow : Window
 
         Dispatcher.UIThread.Post(() => ActivityField?.Focus());
 
-        // When the File submenu opens via click (not via Alt mnemonic), the
-        // default interaction handler selects the first item but does not
-        // focus it, so keyboard input is ignored until the user hovers.
-        // Explicitly focus the first child when the submenu opens.
+
+        // When opening menu via click the first item is selected but not focused, causing it to ignore keyboard input.
         FileMenu.SubmenuOpened += (_, _) =>
         {
             Dispatcher.UIThread.Post(() =>
@@ -45,15 +47,19 @@ public partial class MainWindow : Window
             });
         };
 
-        // Spacebar activates the focused menu item in addition to Enter.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
-        AddHandler(KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
-        AddHandler(PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
-        AddHandler(PointerWheelChangedEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        // RoutedEvent.Raised counts interaction inside dialogs.
+        foreach (var s in _inputSubscriptions) { s.Dispose(); }
+        _inputSubscriptions =
+        [
+            KeyDownEvent.Raised.Subscribe(new AnonymousObserver<(object, RoutedEventArgs)>(OnAnyInput)),
+            PointerPressedEvent.Raised.Subscribe(new AnonymousObserver<(object, RoutedEventArgs)>(OnAnyInput)),
+            PointerWheelChangedEvent.Raised.Subscribe(new AnonymousObserver<(object, RoutedEventArgs)>(OnAnyInput)),
+        ];
     }
 
-    private void OnAnyInput(object? sender, RoutedEventArgs e)
+    private void OnAnyInput((object, RoutedEventArgs) e)
     {
         (DataContext as MainViewModel)?.NotifyInteraction();
     }
@@ -82,6 +88,7 @@ public partial class MainWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         _timer?.Stop();
+        foreach (var s in _inputSubscriptions) { s.Dispose(); }
         (DataContext as MainViewModel)?.NotifyClosing();
     }
 
@@ -121,6 +128,31 @@ public partial class MainWindow : Window
         {
             await clipboard.SetTextAsync(text);
         }
+    }
+
+    private async void OnMarkSpecialDay(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var dialog = new MarkSpecialDayWindow(new MarkSpecialDayViewModel(vm.ValidateActivity, vm.Today));
+        var result = await dialog.ShowDialog<MarkSpecialDayResult?>(this);
+        if (result is null)
+        {
+            return;
+        }
+
+        await vm.MarkSpecialDayAsync(result.Date, result.Activity, result.Duration, count => ConfirmAppendAsync(result, count));
+    }
+
+    private async Task<bool> ConfirmAppendAsync(MarkSpecialDayResult mark, int existingCount)
+    {
+        var entries = existingCount == 1 ? "entry" : "entries";
+        var message = $"The log for {mark.Date:yyyy-MM-dd} already contains {existingCount} {entries}.\nAppend {mark.Activity} ({DurationText.Format(mark.Duration, DurationFormat.Hhmm)})?";
+        var dialog = new ConfirmDialog("Append to existing day", message, confirmText: "Append", cancelText: "Cancel");
+        return await dialog.ShowDialog<bool>(this);
     }
 
     private void OnExit(object? sender, RoutedEventArgs e)

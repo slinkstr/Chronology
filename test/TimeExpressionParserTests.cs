@@ -32,6 +32,29 @@ public class TimeExpressionParserTests
         Assert.False(TimeExpressionParser.TryParse(input, out _));
     }
 
+    [Fact]
+    public void TryParse_NegativeResult_AllowNegative_ReturnsParsedValue()
+    {
+        Assert.True(TimeExpressionParser.TryParse("1:37 - 2:00", out var result, allowNegative: true));
+        Assert.Equal(TimeSpan.FromMinutes(-23), result);
+    }
+
+    [Theory]
+    [InlineData("999999999:00")]
+    [InlineData("256204778:49")]
+    [InlineData("256204778:00 + 256204778:00")]
+    public void TryParse_Overflow_ReturnsFalse(string input)
+    {
+        Assert.False(TimeExpressionParser.TryParse(input, out _));
+    }
+
+    [Fact]
+    public void TryParse_MaximalExpression_Parses()
+    {
+        Assert.True(TimeExpressionParser.TryParse("256204778:48", out var result));
+        Assert.Equal(TimeSpan.FromMinutes(15372286728), result);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

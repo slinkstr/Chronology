@@ -26,19 +26,18 @@ public class MainViewModelTests : IDisposable
         }
     }
 
-    private MainViewModel CreateViewModel(TimeSpan initialClock = default, FakeAlertSoundService? alertSound = null,
-        ConfigReminder? reminder = null)
+    private MainViewModel CreateViewModel(TimeSpan initialClock = default, FakeAlertSoundService? alertSound = null, ConfigReminder? reminder = null, ITimeLogStore? store = null)
     {
         var stateStore = new AppStateStore(_tempDir);
-        var history = new ActivityHistory(new PlaintextTimeLogStore(_tempDir), () => DateOnly.FromDateTime(_virtualNow));
+        var effectiveStore = store ?? new FakeTimeLogStore();
+        var history = new ActivityHistory(effectiveStore, () => DateOnly.FromDateTime(_virtualNow));
 
         if (initialClock != default)
         {
             stateStore.Save(new AppState { Clock = initialClock });
         }
 
-        return new MainViewModel(new FakeTimeLogStore(), stateStore, history, () => _virtualNow,
-            alertSound ?? new FakeAlertSoundService(), reminder);
+        return new MainViewModel(effectiveStore, stateStore, history, () => _virtualNow, alertSound ?? new FakeAlertSoundService(), reminder);
     }
 
     private MainViewModel CreateViewModelWithRealStore(TimeSpan initialClock = default)
@@ -1167,5 +1166,313 @@ public class MainViewModelTests : IDisposable
         vm.Tick();
 
         Assert.Equal(entriesBefore, vm.Entries.Count);
+    }
+
+    // Special day marking
+
+    [Fact]
+    public async Task MarkSpecialDay_EmptyDay_SavesEntryWithoutConfirmation()
+    {
+        var store = new FakeTimeLogStore();
+        var vm = CreateViewModel(store: store);
+        var date = new DateOnly(2026, 9, 5);
+        var confirmCalls = 0;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*HOLIDAY", TimeSpan.FromHours(8), _ => { confirmCalls++; return Task.FromResult(true); });
+
+        Assert.True(marked);
+        Assert.Equal(0, confirmCalls);
+        var entry = Assert.Single(store.Load(date));
+        Assert.Equal("*HOLIDAY", entry.Activity);
+        Assert.Equal(new TimeOnly(0, 0), entry.Timestamp);
+        Assert.Equal(TimeSpan.FromHours(8), entry.Duration);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_ExistingDay_Confirmed_Appends()
+    {
+        var store = new FakeTimeLogStore();
+        var date = new DateOnly(2026, 9, 5);
+        store.Save(date, [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30))]);
+        var vm = CreateViewModel(store: store);
+        var confirmCalls = 0;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*VACATION", TimeSpan.FromHours(8), _ => { confirmCalls++; return Task.FromResult(true); });
+
+        Assert.True(marked);
+        Assert.Equal(1, confirmCalls);
+        var entries = store.Load(date).ToList();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal("Work", entries[0].Activity);
+        Assert.Equal("*VACATION", entries[1].Activity);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_ExistingDay_Declined_LeavesDayUntouched()
+    {
+        var store = new FakeTimeLogStore();
+        var date = new DateOnly(2026, 9, 5);
+        store.Save(date, [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30))]);
+        var vm = CreateViewModel(store: store);
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*VACATION", TimeSpan.FromHours(8), _ => Task.FromResult(false));
+
+        Assert.False(marked);
+        Assert.Single(store.Load(date));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_ExistingDay_PassesEntryCountToConfirmation()
+    {
+        var store = new FakeTimeLogStore();
+        var date = new DateOnly(2026, 9, 5);
+        store.Save(date, [
+            new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30)),
+            new TimeEntry(new TimeOnly(10, 0), "More work", TimeSpan.FromMinutes(15)),
+        ]);
+        var vm = CreateViewModel(store: store);
+        var askedCount = -1;
+
+        await vm.MarkSpecialDayAsync(date, "*VACATION", TimeSpan.FromHours(8), count => { askedCount = count; return Task.FromResult(false); });
+
+        Assert.Equal(2, askedCount);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_InvalidActivity_RaisesError_DoesNotSave()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        var confirmCalls = 0;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "a|b", TimeSpan.FromHours(8), _ => { confirmCalls++; return Task.FromResult(true); });
+
+        Assert.False(marked);
+        Assert.Equal("Invalid activity", title);
+        Assert.Equal(0, confirmCalls);
+        Assert.False(File.Exists(store.GetFilePath(date)));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_WhitespaceActivity_RaisesError_DoesNotSave()
+    {
+        var store = new FakeTimeLogStore();
+        var vm = CreateViewModel(store: store);
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "   ", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.False(marked);
+        Assert.Equal("Invalid activity", title);
+        Assert.Empty(store.Load(date));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_ZeroDuration_RaisesError_DoesNotSave()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*SICK", TimeSpan.Zero, _ => Task.FromResult(true));
+
+        Assert.False(marked);
+        Assert.Equal("Invalid duration", title);
+        Assert.False(File.Exists(store.GetFilePath(date)));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_MalformedFile_RaisesError_DoesNotClobber()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Directory.CreateDirectory(_tempDir);
+        var date = new DateOnly(2026, 9, 3);
+        var path = store.GetFilePath(date);
+        var original = "| XX:00 | Fix bug | 0:48     |\n";
+        File.WriteAllText(path, original);
+
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        string? title = null;
+        var confirmCalls = 0;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*SICK", TimeSpan.FromHours(8), _ => { confirmCalls++; return Task.FromResult(true); });
+
+        Assert.False(marked);
+        Assert.Equal("Malformed day file", title);
+        Assert.Equal(0, confirmCalls);
+        Assert.Equal(original, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_CurrentDay_ReflectedImmediately()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        var today = DateOnly.FromDateTime(_virtualNow);
+
+        var marked = await vm.MarkSpecialDayAsync(today, "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.True(marked);
+        var entry = Assert.Single(vm.Entries);
+        Assert.Equal("*HOLIDAY", entry.Activity);
+        Assert.Equal("8:00", vm.TotalDisplay);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_CurrentDayWithEntries_Confirmed_AppendsAndRefreshes()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var today = DateOnly.FromDateTime(_virtualNow);
+        store.Save(today, [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30))]);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        var confirmCalls = 0;
+
+        var marked = await vm.MarkSpecialDayAsync(today, "*HOLIDAY", TimeSpan.FromHours(8), _ => { confirmCalls++; return Task.FromResult(true); });
+
+        Assert.True(marked);
+        Assert.Equal(1, confirmCalls);
+        Assert.Equal(2, vm.Entries.Count);
+        Assert.Equal("Work", vm.Entries[0].Activity);
+        Assert.Equal("*HOLIDAY", vm.Entries[1].Activity);
+        Assert.Equal("8:30", vm.TotalDisplay);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_TodayThenLog_BothEntriesPersist()
+    {
+        var store = new PlaintextTimeLogStore(_tempDir);
+        var stateStore = new AppStateStore(_tempDir);
+        var history = new ActivityHistory(store, () => DateOnly.FromDateTime(_virtualNow));
+        var vm = new MainViewModel(store, stateStore, history, () => _virtualNow, new FakeAlertSoundService());
+        var today = DateOnly.FromDateTime(_virtualNow);
+
+        var marked = await vm.MarkSpecialDayAsync(today, "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+        Assert.True(marked);
+
+        AdvanceTime(TimeSpan.FromMinutes(30));
+        vm.Tick();
+        vm.Activity = "Fix bug";
+        vm.LogCommand.Execute(null);
+
+        var loaded = store.Load(today).ToList();
+        Assert.Equal(2, loaded.Count);
+        Assert.Equal("*HOLIDAY", loaded[0].Activity);
+        Assert.Equal("Fix bug", loaded[1].Activity);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_AddsNameToRecentActivities()
+    {
+        var store = new FakeTimeLogStore();
+        var vm = CreateViewModel(store: store);
+
+        await vm.MarkSpecialDayAsync(new DateOnly(2026, 9, 5), "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.Contains("*HOLIDAY", vm.RecentActivities);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_FileMutatedDuringConfirmation_AppendsToFreshContents()
+    {
+        var store = new FakeTimeLogStore();
+        var date = new DateOnly(2026, 9, 5);
+        store.Save(date, [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30))]);
+        var vm = CreateViewModel(store: store);
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*VACATION", TimeSpan.FromHours(8), _ =>
+        {
+            store.Save(date, store.Load(date).Append(new TimeEntry(new TimeOnly(10, 0), "Late work", TimeSpan.FromHours(1))));
+            return Task.FromResult(true);
+        });
+
+        Assert.True(marked);
+        Assert.Equal(["Work", "Late work", "*VACATION"], store.Load(date).Select(e => e.Activity).ToList());
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_FileBecomesMalformedDuringConfirmation_RaisesError_DoesNotSave()
+    {
+        var store = new FakeTimeLogStore();
+        var date = new DateOnly(2026, 9, 5);
+        store.Save(date, [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromMinutes(30))]);
+        var vm = CreateViewModel(store: store);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*VACATION", TimeSpan.FromHours(8), _ =>
+        {
+            store.LoadError = new TimeLogFormatException("day.txt", 1, "bad line");
+            return Task.FromResult(true);
+        });
+
+        Assert.False(marked);
+        Assert.Equal("Malformed day file", title);
+        store.LoadError = null;
+        Assert.Equal(["Work"], store.Load(date).Select(e => e.Activity).ToList());
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_LoadIoError_RaisesError()
+    {
+        var store = new FakeTimeLogStore { LoadError = new IOException("locked") };
+        var vm = CreateViewModel(store: store);
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.False(marked);
+        Assert.Equal("File I/O error", title);
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_SaveIoError_RaisesError()
+    {
+        var store = new FakeTimeLogStore { SaveError = new IOException("locked") };
+        var vm = CreateViewModel(store: store);
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.False(marked);
+        Assert.Equal("File I/O error", title);
+        Assert.Empty(store.Load(date));
+    }
+
+    [Fact]
+    public async Task MarkSpecialDay_InvalidOperationOnSave_RaisesInvalidDuration()
+    {
+        var store = new FakeTimeLogStore { SaveError = new InvalidOperationException("too wide") };
+        var vm = CreateViewModel(store: store);
+        var date = new DateOnly(2026, 9, 5);
+        string? title = null;
+        vm.ErrorOccurred += (t, _) => title = t;
+
+        var marked = await vm.MarkSpecialDayAsync(date, "*HOLIDAY", TimeSpan.FromHours(8), _ => Task.FromResult(true));
+
+        Assert.False(marked);
+        Assert.Equal("Invalid duration", title);
+        Assert.Empty(store.Load(date));
     }
 }

@@ -161,6 +161,21 @@ public class PlaintextTimeLogStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_HugeHhmmDuration_ThrowsTimeLogFormatException()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var path = Path.Combine(_tempDir, "2026-09-08.txt");
+        File.WriteAllLines(path, [
+            "| Time  | Activity | Duration |",
+            "| ----- | -------- | -------- |",
+            "| 09:00 | Fix bug  | 999999999:00 |",
+        ]);
+
+        var store = new PlaintextTimeLogStore(_tempDir);
+        Assert.Throws<TimeLogFormatException>(() => store.Load(new DateOnly(2026, 9, 8)).ToList());
+    }
+
+    [Fact]
     public void Load_DecimalDuration_ThrowsTimeLogFormatException()
     {
         Directory.CreateDirectory(_tempDir);

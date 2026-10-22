@@ -1,10 +1,11 @@
 using System.Globalization;
+using Chronology.Services.TimeLogStores;
 
 namespace Chronology.Services;
 
 public static class TimeExpressionParser
 {
-    public static bool TryParse(string input, out TimeSpan result)
+    public static bool TryParse(string input, out TimeSpan result, bool allowNegative = false)
     {
         result = TimeSpan.Zero;
         if (string.IsNullOrWhiteSpace(input))
@@ -29,10 +30,18 @@ public static class TimeExpressionParser
             {
                 return false;
             }
-            result = tokens[i].IsSubtract ? result - tokenValue : result + tokenValue;
+            try
+            {
+                result = tokens[i].IsSubtract ? result - tokenValue : result + tokenValue;
+            }
+            catch (OverflowException)
+            {
+                result = TimeSpan.Zero;
+                return false;
+            }
         }
 
-        return result >= TimeSpan.Zero;
+        return allowNegative || result >= TimeSpan.Zero;
     }
 
     private readonly record struct Token(string Text, bool IsSubtract);
@@ -77,25 +86,7 @@ public static class TimeExpressionParser
 
         if (token.Contains(':'))
         {
-            var parts = token.Split(':');
-            if (parts.Length != 2)
-            {
-                return false;
-            }
-            if (!int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var hours))
-            {
-                return false;
-            }
-            if (!int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var minutes))
-            {
-                return false;
-            }
-            if (minutes >= 60)
-            {
-                return false;
-            }
-            result = new TimeSpan(hours, minutes, 0);
-            return true;
+            return DurationText.TryParseHhmm(token, out result);
         }
 
         if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var bareMinutes))
