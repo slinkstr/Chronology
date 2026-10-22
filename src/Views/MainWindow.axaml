@@ -35,7 +35,7 @@
                 <MenuItem Header="_Mark special day..." Click="OnMarkSpecialDay" />
                 <Separator />
                 <MenuItem Header="_Reload config" Command="{Binding ReloadCommand}" />
-                <MenuItem Header="Edit _config" Command="{Binding EditConfigCommand}" />
+                <MenuItem Header="_Edit config" Command="{Binding EditConfigCommand}" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExit" />
             </MenuItem>
