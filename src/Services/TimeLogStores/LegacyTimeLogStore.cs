@@ -20,7 +20,7 @@ public class LegacyTimeLogStore : IFileBackedStore
     private const int    IndentWidth   = 30;
     private const string FilePrefix    = "TimeLog.";
 
-    public LegacyTimeLogStore(string dataDirectory = "./timelog", DurationFormat durationFormat = DurationFormat.Fractional)
+    public LegacyTimeLogStore(string dataDirectory = "./timelog", DurationFormat durationFormat = DurationFormat.Hhmm)
     {
         DataDirectory  = dataDirectory;
         DurationFormat = durationFormat;

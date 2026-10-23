@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Chronology.csproj" />
+    <ProjectReference Include="..\tools\ConfigDocGen\Chronology.Tools.ConfigDocGen.csproj" />
   </ItemGroup>
 
 </Project>

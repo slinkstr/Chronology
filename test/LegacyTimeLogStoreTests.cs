@@ -245,7 +245,8 @@ public class LegacyTimeLogStoreTests : IDisposable
     public void Precision_MatchesDurationFormat()
     {
         Assert.Equal(TimeSpan.FromMinutes(1), new LegacyTimeLogStore(_tempDir, DurationFormat.Hhmm).Precision);
-        Assert.Equal(TimeSpan.FromHours(0.01), new LegacyTimeLogStore(_tempDir).Precision);
+        Assert.Equal(TimeSpan.FromHours(0.01), new LegacyTimeLogStore(_tempDir, DurationFormat.Fractional).Precision);
+        Assert.Equal(TimeSpan.FromMinutes(1), new LegacyTimeLogStore(_tempDir).Precision);
     }
 
     [Fact]

@@ -10,7 +10,7 @@ public sealed class Config
     private const int    CurrentVersion = 1;
     private const string FileName       = "config.json";
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented        = true,
@@ -176,10 +176,10 @@ public sealed class Config
     private static ConfigWeeklySum ValidateWeeklySum(ConfigWeeklySum? weeklySum)
     {
         weeklySum ??= new ConfigWeeklySum();
-        var hours = weeklySum.HoursPerWeek;
-        if (!double.IsFinite(hours) || hours < 0)
+        var hours = weeklySum.GoalHours;
+        if (!double.IsFinite(hours) || hours <= 0)
         {
-            throw new ConfigException("Invalid 'weeklySum.hoursPerWeek' in config. Expected a non-negative number of hours.");
+            throw new ConfigException("Invalid 'weeklySum.goalHours' in config. Expected a positive number of hours.");
         }
         try
         {
@@ -187,15 +187,16 @@ public sealed class Config
         }
         catch (OverflowException ex)
         {
-            throw new ConfigException($"Value '{hours}' is out of range for 'weeklySum.hoursPerWeek'.", ex);
+            throw new ConfigException($"Value '{hours}' is out of range for 'weeklySum.goalHours'.", ex);
         }
 
         return new ConfigWeeklySum
         {
-            Enabled      = weeklySum.Enabled,
-            HoursPerWeek = hours,
-            ShowGoal     = weeklySum.ShowGoal,
-            WeekStart    = weeklySum.WeekStart,
+            Enabled           = weeklySum.Enabled,
+            GoalHighlightShow = weeklySum.GoalHighlightShow,
+            GoalHours         = hours,
+            GoalShow          = weeklySum.GoalShow,
+            WeekStart         = weeklySum.WeekStart,
         };
     }
 

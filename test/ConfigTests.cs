@@ -221,7 +221,7 @@ public class ConfigTests : IDisposable
         Assert.Equal(["count", "enabled", "intervalMinutes", "soundFile"], reminder.EnumerateObject().Select(p => p.Name).Order());
 
         var weeklySum = root.GetProperty("weeklySum");
-        Assert.Equal(["enabled", "hoursPerWeek", "showGoal", "weekStart"], weeklySum.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(["enabled", "goalHighlightShow", "goalHours", "goalShow", "weekStart"], weeklySum.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal("Sunday", weeklySum.GetProperty("weekStart").GetString());
     }
 
@@ -372,7 +372,7 @@ public class ConfigTests : IDisposable
 
         var config = Config.Load(ConfigPath);
 
-        Assert.Equal(DurationFormat.Fractional, Assert.IsType<LegacyTimeLogStore>(config.Store).DurationFormat);
+        Assert.Equal(DurationFormat.Hhmm, Assert.IsType<LegacyTimeLogStore>(config.Store).DurationFormat);
     }
 
     [Fact]
@@ -483,8 +483,9 @@ public class ConfigTests : IDisposable
         var config = Config.Load(ConfigPath);
 
         Assert.False(config.WeeklySum.Enabled);
-        Assert.Equal(40, config.WeeklySum.HoursPerWeek);
-        Assert.True(config.WeeklySum.ShowGoal);
+        Assert.Equal(40, config.WeeklySum.GoalHours);
+        Assert.True(config.WeeklySum.GoalShow);
+        Assert.True(config.WeeklySum.GoalHighlightShow);
         Assert.Equal(DayOfWeek.Sunday, config.WeeklySum.WeekStart);
     }
 
@@ -499,8 +500,8 @@ public class ConfigTests : IDisposable
               "weeklySum": {
                 "enabled": true,
                 "weekStart": "Monday",
-                "hoursPerWeek": 32,
-                "showGoal": false
+                "goalHours": 32,
+                "goalShow": false
               }
             }
             """);
@@ -509,39 +510,40 @@ public class ConfigTests : IDisposable
 
         Assert.True(config.WeeklySum.Enabled);
         Assert.Equal(DayOfWeek.Monday, config.WeeklySum.WeekStart);
-        Assert.Equal(32, config.WeeklySum.HoursPerWeek);
-        Assert.False(config.WeeklySum.ShowGoal);
+        Assert.Equal(32, config.WeeklySum.GoalHours);
+        Assert.False(config.WeeklySum.GoalShow);
     }
 
     [Fact]
-    public void Load_ZeroHoursPerWeek_Loads()
+    public void Load_ZeroGoalHours_Throws()
     {
         Directory.CreateDirectory(_tempDir);
         File.WriteAllText(ConfigPath, """
             {
               "version": 1,
               "store": { "type": "Plaintext" },
-              "weeklySum": { "hoursPerWeek": 0 }
-            }
-            """);
-
-        Assert.Equal(0, Config.Load(ConfigPath).WeeklySum.HoursPerWeek);
-    }
-
-    [Fact]
-    public void Load_NegativeHoursPerWeek_Throws()
-    {
-        Directory.CreateDirectory(_tempDir);
-        File.WriteAllText(ConfigPath, """
-            {
-              "version": 1,
-              "store": { "type": "Plaintext" },
-              "weeklySum": { "hoursPerWeek": -1 }
+              "weeklySum": { "goalHours": 0 }
             }
             """);
 
         var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
-        Assert.Contains("hoursPerWeek", ex.Message);
+        Assert.Contains("goalHours", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NegativeGoalHours_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": { "goalHours": -1 }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("goalHours", ex.Message);
     }
 
     [Fact]

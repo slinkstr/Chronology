@@ -1560,12 +1560,12 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public void WeeklySum_NoGoal_DisplaysBareTotal()
+    public void WeeklySum_HighlightDisabled_StillShowsGoal()
     {
         var store = new FakeTimeLogStore();
         store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(41))]);
-        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, HoursPerWeek = 0 });
-        Assert.Equal("41:00", vm.WeeklySumDisplay);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, GoalHighlightShow = false });
+        Assert.Equal("41:00 / 40:00", vm.WeeklySumDisplay);
         Assert.False(vm.WeeklySumGoalMet);
     }
 
@@ -1574,7 +1574,7 @@ public class MainViewModelTests : IDisposable
     {
         var store = new FakeTimeLogStore();
         store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(8))]);
-        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, HoursPerWeek = 8, ShowGoal = false });
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, GoalHours = 8, GoalShow = false });
         Assert.Equal("8:00", vm.WeeklySumDisplay);
         Assert.True(vm.WeeklySumGoalMet);
     }

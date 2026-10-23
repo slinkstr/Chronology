@@ -6,7 +6,14 @@ namespace Chronology.Services.TimeLogStores;
 
 internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
 {
-    private const string TypeKey = "type";
+    internal const string TypeKey = "type";
+
+    internal static readonly IReadOnlyDictionary<string, Type> StoreTypes =
+        new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase)
+        {
+            [PlaintextTimeLogStore.StoreName] = typeof(PlaintextTimeLogStore),
+            [LegacyTimeLogStore.StoreName]    = typeof(LegacyTimeLogStore),
+        };
 
     public override ITimeLogStore? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -24,13 +31,9 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
         var typeName = typeElement.GetString()!;
         try
         {
-            if (typeName.Equals(PlaintextTimeLogStore.StoreName, StringComparison.OrdinalIgnoreCase))
+            if (StoreTypes.TryGetValue(typeName, out var storeType))
             {
-                return DeserializeStore<PlaintextTimeLogStore>(root, options);
-            }
-            if (typeName.Equals(LegacyTimeLogStore.StoreName, StringComparison.OrdinalIgnoreCase))
-            {
-                return DeserializeStore<LegacyTimeLogStore>(root, options);
+                return DeserializeStore(root, storeType, options);
             }
         }
         catch (JsonException ex)
@@ -42,12 +45,8 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
 
     public override void Write(Utf8JsonWriter writer, ITimeLogStore value, JsonSerializerOptions options)
     {
-        var typeName = value switch
-        {
-            PlaintextTimeLogStore => PlaintextTimeLogStore.StoreName,
-            LegacyTimeLogStore    => LegacyTimeLogStore.StoreName,
-            _ => throw new ConfigException($"Cannot serialize store type '{value.GetType().Name}'."),
-        };
+        var typeName = StoreTypes.FirstOrDefault(kv => kv.Value == value.GetType()).Key
+            ?? throw new ConfigException($"Cannot serialize store type '{value.GetType().Name}'.");
         writer.WriteStartObject();
         writer.WriteString(TypeKey, typeName);
         using var document = JsonSerializer.SerializeToDocument(value, value.GetType(), options);
@@ -58,11 +57,9 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
         writer.WriteEndObject();
     }
 
-    private static TStore DeserializeStore<TStore>(JsonElement root, JsonSerializerOptions options)
-        where TStore : class, IFileBackedStore
+    private static ITimeLogStore DeserializeStore(JsonElement root, Type storeType, JsonSerializerOptions options)
     {
-        var store = root.Deserialize<TStore>(options);
-        if (store is null || string.IsNullOrWhiteSpace(store.DataDirectory))
+        if (root.Deserialize(storeType, options) is not IFileBackedStore store || string.IsNullOrWhiteSpace(store.DataDirectory))
         {
             throw new ConfigException("Missing or invalid 'store.dataDirectory' in config. Expected a non-empty directory path.");
         }

@@ -507,13 +507,12 @@ public partial class MainViewModel : ViewModelBase
         {
             return;
         }
-        var hasGoal = _weeklySumConfig.HoursPerWeek > 0;
-        var goal = TimeSpan.FromHours(_weeklySumConfig.HoursPerWeek);
+        var goal = TimeSpan.FromHours(_weeklySumConfig.GoalHours);
         var sum = _weeklySum.Compute(OnWeeklySumLoadError) + CurrentClock;
-        WeeklySumDisplay = hasGoal && _weeklySumConfig.ShowGoal
+        WeeklySumDisplay = _weeklySumConfig.GoalShow
             ? $"{DurationText.Format(sum, DurationFormat.Hhmm)} / {DurationText.Format(goal, DurationFormat.Hhmm)}"
             : DurationText.Format(sum, DurationFormat.Hhmm);
-        WeeklySumGoalMet = hasGoal && sum >= goal;
+        WeeklySumGoalMet = _weeklySumConfig.GoalHighlightShow && sum >= goal;
     }
 
     private void OnWeeklySumLoadError(Exception ex)

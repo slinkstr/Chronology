@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Chronology.Tests" />
+    <InternalsVisibleTo Include="Chronology.Tools.ConfigDocGen" />
   </ItemGroup>
 
   <ItemGroup>
