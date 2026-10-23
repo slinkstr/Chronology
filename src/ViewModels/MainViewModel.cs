@@ -30,6 +30,8 @@ public partial class MainViewModel : ViewModelBase
     private CancellationTokenSource? _reminderSoundCts;
     private ITimeLogStore            _store;
     private DateTime?                _timeFieldBlurredAt;
+    private WeeklySum                _weeklySum;
+    private ConfigWeeklySum          _weeklySumConfig;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LogCommand))]
@@ -51,6 +53,15 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _totalDisplay = "0:00";
 
+    [ObservableProperty]
+    private string _weeklySumDisplay = "0:00";
+
+    [ObservableProperty]
+    private bool _weeklySumGoalMet;
+
+    [ObservableProperty]
+    private bool _weeklySumVisible;
+
     public TimeSpan                      CurrentClock     => _accumulatedClock + (_now() - _lastTickAt);
     public List<TimeEntry>               Entries          { get; } = [];
     public bool                          HasFileBackend   => _store is IFileBackedStore;
@@ -64,31 +75,36 @@ public partial class MainViewModel : ViewModelBase
     {
     }
 
-    internal MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now, IAlertSoundService alertSound, ConfigReminder? reminder = null)
+    internal MainViewModel(ITimeLogStore store, AppStateStore stateStore, ActivityHistory? activityHistory, Func<DateTime> now, IAlertSoundService alertSound, ConfigReminder? reminder = null, ConfigWeeklySum? weeklySum = null)
     {
         _alertSound      = alertSound;
         _store           = store;
         _stateStore      = stateStore;
         _reminder        = reminder ?? new ConfigReminder();
+        _weeklySumConfig = weeklySum ?? new ConfigWeeklySum();
         _activityHistory = activityHistory ?? new ActivityHistory(store, () => DateOnly.FromDateTime(now()));
         _now             = now;
         _currentDate     = DateOnly.FromDateTime(_now());
         _lastInteraction = _now();
         _lastTickAt      = _now();
         _lastStateSave   = _now();
+        _weeklySum       = new WeeklySum(store, () => DateOnly.FromDateTime(now()), _weeklySumConfig.WeekStart);
+
+        WeeklySumVisible = _weeklySumConfig.Enabled;
 
         LoadDay();
         LoadState();
         RefreshRecentActivities();
         RefreshTimeDisplay();
         UpdateTotalDisplay();
+        UpdateWeeklySum();
         RefreshNavigationCommands();
         InitializeFilePoll();
     }
 
     private MainViewModel(Config config, IAlertSoundService alertSound)
         : this(config.Store, new AppStateStore(Directory.GetCurrentDirectory()), null, () => DateTime.Now,
-            alertSound, config.Reminder)
+            alertSound, config.Reminder, config.WeeklySum)
     {
     }
 
@@ -191,6 +207,7 @@ public partial class MainViewModel : ViewModelBase
             RefreshTimeDisplay();
         }
         UpdateTotalDisplay();
+        UpdateWeeklySum();
         LogCommand.NotifyCanExecuteChanged();
 
         if (_now() - _lastStateSave >= TimeSpan.FromMinutes(1))
@@ -484,6 +501,33 @@ public partial class MainViewModel : ViewModelBase
         TotalDisplay = DurationText.Format(total, DurationFormat.Hhmm);
     }
 
+    private void UpdateWeeklySum()
+    {
+        if (!_weeklySumConfig.Enabled)
+        {
+            return;
+        }
+        var hasGoal = _weeklySumConfig.HoursPerWeek > 0;
+        var goal = TimeSpan.FromHours(_weeklySumConfig.HoursPerWeek);
+        var sum = _weeklySum.Compute(OnWeeklySumLoadError) + CurrentClock;
+        WeeklySumDisplay = hasGoal && _weeklySumConfig.ShowGoal
+            ? $"{DurationText.Format(sum, DurationFormat.Hhmm)} / {DurationText.Format(goal, DurationFormat.Hhmm)}"
+            : DurationText.Format(sum, DurationFormat.Hhmm);
+        WeeklySumGoalMet = hasGoal && sum >= goal;
+    }
+
+    private void OnWeeklySumLoadError(Exception ex)
+    {
+        if (ex is TimeLogFormatException)
+        {
+            RaiseError("Malformed day file", ex.Message);
+        }
+        else
+        {
+            RaiseError("File I/O error", $"Failed to read day file: {ex.Message}");
+        }
+    }
+
     [RelayCommand]
     private void EditConfig()
     {
@@ -629,13 +673,18 @@ public partial class MainViewModel : ViewModelBase
 
         _store = config.Store;
         _reminder = config.Reminder;
+        _weeklySumConfig = config.WeeklySum;
         _activityHistory = new ActivityHistory(_store, () => DateOnly.FromDateTime(_now()));
+        _weeklySum = new WeeklySum(_store, () => DateOnly.FromDateTime(_now()), _weeklySumConfig.WeekStart);
+
+        WeeklySumVisible = _weeklySumConfig.Enabled;
 
         LoadDay();
         _activityHistory?.Reload();
         RefreshRecentActivities();
         RefreshTimeDisplay();
         UpdateTotalDisplay();
+        UpdateWeeklySum();
         RefreshNavigationCommands();
         InitializeFilePoll();
         OnPropertyChanged(nameof(HasFileBackend));

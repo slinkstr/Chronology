@@ -210,7 +210,7 @@ public class ConfigTests : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
         var root = document.RootElement;
 
-        Assert.Equal(["reminder", "store", "version"], root.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(["reminder", "store", "version", "weeklySum"], root.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(1, root.GetProperty("version").GetInt32());
 
         var store = root.GetProperty("store");
@@ -219,6 +219,10 @@ public class ConfigTests : IDisposable
 
         var reminder = root.GetProperty("reminder");
         Assert.Equal(["count", "enabled", "intervalMinutes", "soundFile"], reminder.EnumerateObject().Select(p => p.Name).Order());
+
+        var weeklySum = root.GetProperty("weeklySum");
+        Assert.Equal(["enabled", "hoursPerWeek", "showGoal", "weekStart"], weeklySum.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal("Sunday", weeklySum.GetProperty("weekStart").GetString());
     }
 
     [Fact]
@@ -463,6 +467,126 @@ public class ConfigTests : IDisposable
             """);
 
         Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+    }
+
+    [Fact]
+    public void Load_ConfigWithoutWeeklySum_UsesDefaults()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.False(config.WeeklySum.Enabled);
+        Assert.Equal(40, config.WeeklySum.HoursPerWeek);
+        Assert.True(config.WeeklySum.ShowGoal);
+        Assert.Equal(DayOfWeek.Sunday, config.WeeklySum.WeekStart);
+    }
+
+    [Fact]
+    public void Load_CustomWeeklySum_LoadsValues()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": {
+                "enabled": true,
+                "weekStart": "Monday",
+                "hoursPerWeek": 32,
+                "showGoal": false
+              }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.True(config.WeeklySum.Enabled);
+        Assert.Equal(DayOfWeek.Monday, config.WeeklySum.WeekStart);
+        Assert.Equal(32, config.WeeklySum.HoursPerWeek);
+        Assert.False(config.WeeklySum.ShowGoal);
+    }
+
+    [Fact]
+    public void Load_ZeroHoursPerWeek_Loads()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": { "hoursPerWeek": 0 }
+            }
+            """);
+
+        Assert.Equal(0, Config.Load(ConfigPath).WeeklySum.HoursPerWeek);
+    }
+
+    [Fact]
+    public void Load_NegativeHoursPerWeek_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": { "hoursPerWeek": -1 }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("hoursPerWeek", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NumericWeekStart_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": { "weekStart": 0 }
+            }
+            """);
+
+        Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+    }
+
+    [Fact]
+    public void Load_InvalidWeekStartString_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": { "weekStart": "Funday" }
+            }
+            """);
+
+        Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+    }
+
+    [Fact]
+    public void Load_NullWeeklySum_UsesDefaults()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "weeklySum": null
+            }
+            """);
+
+        Assert.False(Config.Load(ConfigPath).WeeklySum.Enabled);
     }
 
     private static void AssertReminderMatches(ConfigReminder expected, ConfigReminder actual)

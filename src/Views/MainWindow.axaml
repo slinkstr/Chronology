@@ -20,6 +20,9 @@
         <Style Selector="Menu > MenuItem > MenuItem">
             <Setter Property="AccessText.ShowAccessKey" Value="True" />
         </Style>
+        <Style Selector="TextBlock.goalMet">
+            <Setter Property="Foreground" Value="LimeGreen" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -92,11 +95,16 @@
                 <Button Grid.Column="0"
                         Content="Log"
                         Command="{Binding LogCommand}"
-                        HorizontalAlignment="Left" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding TotalDisplay, StringFormat='Total: {0}'}"
-                           VerticalAlignment="Center"
-                           Classes="monospace" />
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TotalDisplay, StringFormat='Total: {0}'}"
+                               Classes="monospace" />
+                    <TextBlock Text="{Binding WeeklySumDisplay, StringFormat='Week: {0}'}"
+                               IsVisible="{Binding WeeklySumVisible}"
+                               Classes="monospace"
+                               Classes.goalMet="{Binding WeeklySumGoalMet}" />
+                </StackPanel>
             </Grid>
         </StackPanel>
     </DockPanel>

@@ -27,7 +27,7 @@ public class MainViewModelTests : IDisposable
         }
     }
 
-    private MainViewModel CreateViewModel(TimeSpan initialClock = default, FakeAlertSoundService? alertSound = null, ConfigReminder? reminder = null, ITimeLogStore? store = null)
+    private MainViewModel CreateViewModel(TimeSpan initialClock = default, FakeAlertSoundService? alertSound = null, ConfigReminder? reminder = null, ITimeLogStore? store = null, ConfigWeeklySum? weeklySum = null)
     {
         var stateStore = new AppStateStore(_tempDir);
         var effectiveStore = store ?? new FakeTimeLogStore();
@@ -38,7 +38,7 @@ public class MainViewModelTests : IDisposable
             stateStore.Save(new AppState { Clock = initialClock, ClockDate = DateOnly.FromDateTime(_virtualNow) });
         }
 
-        return new MainViewModel(effectiveStore, stateStore, history, () => _virtualNow, alertSound ?? new FakeAlertSoundService(), reminder);
+        return new MainViewModel(effectiveStore, stateStore, history, () => _virtualNow, alertSound ?? new FakeAlertSoundService(), reminder, weeklySum);
     }
 
     private MainViewModel CreateViewModelWithRealStore(TimeSpan initialClock = default)
@@ -1517,5 +1517,98 @@ public class MainViewModelTests : IDisposable
         Assert.False(marked);
         Assert.Equal("Invalid duration", title);
         Assert.Empty(store.Load(date));
+    }
+
+    // Weekly sum
+    // _virtualNow is Friday 2026-09-04; the default Sunday-start week is 2026-08-30 to 2026-09-05.
+
+    [Fact]
+    public void WeeklySum_DisabledByDefault_NotVisible()
+    {
+        var vm = CreateViewModel();
+        Assert.False(vm.WeeklySumVisible);
+    }
+
+    [Fact]
+    public void WeeklySum_Enabled_DisplaysSumAndGoal()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(8))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true });
+        Assert.True(vm.WeeklySumVisible);
+        Assert.Equal("8:00 / 40:00", vm.WeeklySumDisplay);
+        Assert.False(vm.WeeklySumGoalMet);
+    }
+
+    [Fact]
+    public void WeeklySum_IncludesRunningClock()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(8))]);
+        var vm = CreateViewModel(initialClock: TimeSpan.FromHours(2), store: store, weeklySum: new ConfigWeeklySum { Enabled = true });
+        Assert.Equal("10:00 / 40:00", vm.WeeklySumDisplay);
+    }
+
+    [Fact]
+    public void WeeklySum_GoalMet_WhenSumReachesGoal()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 3), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(40))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true });
+        Assert.Equal("40:00 / 40:00", vm.WeeklySumDisplay);
+        Assert.True(vm.WeeklySumGoalMet);
+    }
+
+    [Fact]
+    public void WeeklySum_NoGoal_DisplaysBareTotal()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(41))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, HoursPerWeek = 0 });
+        Assert.Equal("41:00", vm.WeeklySumDisplay);
+        Assert.False(vm.WeeklySumGoalMet);
+    }
+
+    [Fact]
+    public void WeeklySum_HiddenGoal_StillMarksGoalMet()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 4), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(8))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, HoursPerWeek = 8, ShowGoal = false });
+        Assert.Equal("8:00", vm.WeeklySumDisplay);
+        Assert.True(vm.WeeklySumGoalMet);
+    }
+
+    [Fact]
+    public void WeeklySum_ExcludesDaysBeforeWeekStart()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 8, 30), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(8))]);
+        store.Save(new DateOnly(2026, 8, 31), [new TimeEntry(new TimeOnly(9, 0), "Work", TimeSpan.FromHours(4))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true, WeekStart = DayOfWeek.Monday });
+        Assert.Equal("4:00 / 40:00", vm.WeeklySumDisplay);
+    }
+
+    [Fact]
+    public void WeeklySum_IncludesFutureMarksInWeek()
+    {
+        var store = new FakeTimeLogStore();
+        store.Save(new DateOnly(2026, 9, 5), [new TimeEntry(new TimeOnly(9, 0), "*HOLIDAY", TimeSpan.FromHours(8))]);
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true });
+        Assert.Equal("8:00 / 40:00", vm.WeeklySumDisplay);
+    }
+
+    [Fact]
+    public void WeeklySum_LoadError_RaisesErrorOncePerFile()
+    {
+        var store = new FakeTimeLogStore { LoadError = new TimeLogFormatException("day.txt", 1, "bad line") };
+        var errors = 0;
+        var vm = CreateViewModel(store: store, weeklySum: new ConfigWeeklySum { Enabled = true });
+        vm.ErrorOccurred += (_, _) => errors++;
+        vm.FlushPendingErrors();
+        Assert.Equal(8, errors);
+        vm.Tick();
+        vm.Tick();
+        Assert.Equal(8, errors);
     }
 }

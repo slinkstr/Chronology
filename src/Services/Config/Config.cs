@@ -14,14 +14,16 @@ public sealed class Config
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented        = true,
+        Converters           = { new JsonStringEnumConverter<DayOfWeek>(allowIntegerValues: false) },
     };
 
     public static string FilePath => Path.Combine(Directory.GetCurrentDirectory(), FileName);
 
-    public int            Version  { get; set; } = CurrentVersion;
+    public int             Version  { get; set; } = CurrentVersion;
     [JsonConverter(typeof(TimeLogStoreJsonConverter))]
-    public ITimeLogStore  Store    { get; set; } = new PlaintextTimeLogStore();
-    public ConfigReminder Reminder { get; set; } = new();
+    public ITimeLogStore   Store    { get; set; } = new PlaintextTimeLogStore();
+    public ConfigReminder  Reminder { get; set; } = new();
+    public ConfigWeeklySum WeeklySum { get; set; } = new();
 
     public static Config Load()
     {
@@ -35,6 +37,7 @@ public sealed class Config
         ValidateVersion(config.Version);
         var configDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
         config.Reminder = ValidateReminder(config.Reminder, configDirectory);
+        config.WeeklySum = ValidateWeeklySum(config.WeeklySum);
         return config;
     }
 
@@ -167,6 +170,32 @@ public sealed class Config
             Enabled         = reminder.Enabled,
             IntervalMinutes = minutes,
             SoundFile       = ResolveSoundFile(reminder.SoundFile, configDirectory),
+        };
+    }
+
+    private static ConfigWeeklySum ValidateWeeklySum(ConfigWeeklySum? weeklySum)
+    {
+        weeklySum ??= new ConfigWeeklySum();
+        var hours = weeklySum.HoursPerWeek;
+        if (!double.IsFinite(hours) || hours < 0)
+        {
+            throw new ConfigException("Invalid 'weeklySum.hoursPerWeek' in config. Expected a non-negative number of hours.");
+        }
+        try
+        {
+            _ = TimeSpan.FromHours(hours);
+        }
+        catch (OverflowException ex)
+        {
+            throw new ConfigException($"Value '{hours}' is out of range for 'weeklySum.hoursPerWeek'.", ex);
+        }
+
+        return new ConfigWeeklySum
+        {
+            Enabled      = weeklySum.Enabled,
+            HoursPerWeek = hours,
+            ShowGoal     = weeklySum.ShowGoal,
+            WeekStart    = weeklySum.WeekStart,
         };
     }
 
