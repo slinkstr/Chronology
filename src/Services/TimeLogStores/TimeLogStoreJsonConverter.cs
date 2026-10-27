@@ -15,7 +15,7 @@ internal sealed class TimeLogStoreJsonConverter : JsonConverter<ITimeLogStore>
             [LegacyTimeLogStore.StoreName]    = typeof(LegacyTimeLogStore),
         };
 
-    public override ITimeLogStore? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override ITimeLogStore Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var document = JsonDocument.ParseValue(ref reader);
         var root = document.RootElement;

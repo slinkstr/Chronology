@@ -107,7 +107,7 @@ internal static class ConfigDocGenerator
         var defaultStore = storeTypes.FirstOrDefault(s => s.Type == config.Store.GetType()).Name
             ?? throw new InvalidOperationException($"Default store type '{config.Store.GetType().Name}' is not registered in {nameof(TimeLogStoreJsonConverter)}.{nameof(TimeLogStoreJsonConverter.StoreTypes)}.");
         var typeKey = $"{StorePrefix}{TimeLogStoreJsonConverter.TypeKey}";
-        rows.Add(new Row($"`{typeKey}`", storeNames, $"`{Escape(defaultStore)}`", Note(typeKey)));
+        rows.Add(new Row($"`{typeKey}`", storeNames, $"`{Escape(defaultStore)}`", GetNote(typeKey)));
         return rows;
     }
 
@@ -123,7 +123,7 @@ internal static class ConfigDocGenerator
         {
             throw new InvalidOperationException($"Config key '{key}' has unsupported type '{prop.Type.Name}'.");
         }
-        rows.Add(new Row($"`{key}`", TypeOf(prop.Type), Render(prop.Value), Note(key)));
+        rows.Add(new Row($"`{key}`", TypeOf(prop.Type), Render(prop.Value), GetNote(key)));
     }
 
     private static List<Row> LeafRows(Type pocoType, object? instance, string prefix)
@@ -232,7 +232,7 @@ internal static class ConfigDocGenerator
         return s.Replace("|", "\\|").Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ');
     }
 
-    private static string Note(string key)
+    private static string GetNote(string key)
     {
         if (Notes.TryGetValue(key, out var note))
         {

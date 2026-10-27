@@ -201,7 +201,7 @@ public partial class MainViewModel : ViewModelBase
         PollDayFile();
         CheckReminder();
 
-        var inBlurGrace = _timeFieldBlurredAt is DateTime blurredAt && _now() - blurredAt < TimeSpan.FromSeconds(2);
+        var inBlurGrace = _timeFieldBlurredAt is { } blurredAt && _now() - blurredAt < TimeSpan.FromSeconds(2);
         if (!_isTimeFieldFocused && !inBlurGrace)
         {
             RefreshTimeDisplay();

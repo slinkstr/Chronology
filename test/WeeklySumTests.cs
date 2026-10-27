@@ -1,6 +1,5 @@
 using Chronology.Models;
 using Chronology.Services;
-using Chronology.Services.TimeLogStores;
 using Xunit;
 
 namespace Chronology.Tests;

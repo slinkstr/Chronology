@@ -25,7 +25,7 @@ public partial class MainWindow : Window
         Activated += OnActivated;
     }
 
-    private void OnLoaded(object? sender, EventArgs e)
+    private void OnLoaded(object? sender, EventArgs args)
     {
         _timer?.Stop();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
