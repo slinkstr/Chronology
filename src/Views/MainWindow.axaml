@@ -25,31 +25,60 @@
         </Style>
     </Window.Styles>
 
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+R" Command="{Binding ResetCommand}" />
+    </Window.KeyBindings>
+
     <DockPanel>
-        <Menu x:Name="MenuBar" DockPanel.Dock="Top" HorizontalAlignment="Stretch">
-            <MenuItem x:Name="FileMenu" Header="_File">
-                <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}"
-                          IsVisible="{Binding HasFileBackend}" />
-                <MenuItem Header="Open timelog _directory" Command="{Binding OpenTimelogDirectoryCommand}"
-                          IsVisible="{Binding HasFileBackend}" />
-                <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard"
-                          IsVisible="{Binding HasFileBackend}" />
-                <Separator IsVisible="{Binding HasFileBackend}" />
-                <MenuItem Header="_Mark special day..." Click="OnMarkSpecialDay" />
-                <Separator />
-                <MenuItem Header="_Reload config" Command="{Binding ReloadCommand}" />
-                <MenuItem Header="_Edit config" Command="{Binding EditConfigCommand}" />
-                <Separator />
-                <MenuItem Header="E_xit" Click="OnExit" />
-            </MenuItem>
-            <MenuItem Header="_Help">
-                <MenuItem Header="_About" Click="OnAbout" />
-            </MenuItem>
-        </Menu>
+        <Grid DockPanel.Dock="Top">
+            <Menu x:Name="MenuBar" HorizontalAlignment="Stretch">
+                <MenuItem x:Name="FileMenu" Header="_File">
+                    <MenuItem Header="Open current timelog _file" Command="{Binding OpenCurrentLogFileCommand}"
+                              IsVisible="{Binding HasFileBackend}" />
+                    <MenuItem Header="Open timelog _directory" Command="{Binding OpenTimelogDirectoryCommand}"
+                              IsVisible="{Binding HasFileBackend}" />
+                    <MenuItem Header="_Copy current timelog to clipboard" Click="OnCopyTimelogToClipboard"
+                              IsVisible="{Binding HasFileBackend}" />
+                    <Separator IsVisible="{Binding HasFileBackend}" />
+                    <MenuItem Header="_Mark special day..." Click="OnMarkSpecialDay" />
+                    <Separator />
+                    <MenuItem Header="_Reload config" Command="{Binding ReloadCommand}" />
+                    <MenuItem Header="_Edit config" Command="{Binding EditConfigCommand}" />
+                    <Separator />
+                    <MenuItem Header="E_xit" Click="OnExit" />
+                </MenuItem>
+                <MenuItem Header="_Help">
+                    <MenuItem Header="_About" Click="OnAbout" />
+                </MenuItem>
+            </Menu>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Spacing="4" Margin="0,0,4,0">
+                <Panel Background="Transparent" ToolTip.Tip="Previous activity (Alt+Left)">
+                    <Button Classes="compact"
+                            Content="&#x2190;"
+                            Command="{Binding GoBackCommand}"
+                            IsEnabled="{Binding CanGoBack}"
+                            Height="26" />
+                </Panel>
+                <Panel Background="Transparent" ToolTip.Tip="Next activity (Alt+Right)">
+                    <Button Classes="compact"
+                            Content="&#x2192;"
+                            Command="{Binding GoForwardCommand}"
+                            IsEnabled="{Binding CanGoForward}"
+                            Height="26" />
+                </Panel>
+                <Panel Background="Transparent" ToolTip.Tip="Reset clock (Ctrl+R)">
+                    <Button Classes="compact"
+                            Content="&#x21bb;"
+                            Command="{Binding ResetCommand}"
+                            Height="26" />
+                </Panel>
+            </StackPanel>
+        </Grid>
 
         <StackPanel Margin="10" Spacing="6">
             <Grid RowDefinitions="Auto,Auto,Auto"
-                  ColumnDefinitions="60,*,34,34"
+                  ColumnDefinitions="60,*"
                   RowSpacing="6"
                   ColumnSpacing="4">
 
@@ -60,16 +89,6 @@
                                  ItemsSource="{Binding RecentActivities}"
                                  MinimumPrefixLength="0"
                                  KeyDown="OnLogFieldKeyDown" />
-                <Button Grid.Row="0" Grid.Column="2" Classes="compact"
-                        Content="&#x2190;"
-                        Command="{Binding GoBackCommand}"
-                        Classes.disabled="{Binding !CanGoBack}"
-                        ToolTip.Tip="Previous activity" />
-                <Button Grid.Row="0" Grid.Column="3" Classes="compact"
-                        Content="&#x2192;"
-                        Command="{Binding GoForwardCommand}"
-                        Classes.disabled="{Binding !CanGoForward}"
-                        ToolTip.Tip="Next activity" />
 
                 <Label Grid.Row="1" Grid.Column="0" Content="Time" VerticalAlignment="Center" />
                 <TextBox Grid.Row="1" Grid.Column="1"
@@ -79,12 +98,8 @@
                          LostFocus="OnTimeFieldLostFocus"
                          KeyDown="OnLogFieldKeyDown"
                          Classes="monospace" />
-                <Button Grid.Row="1" Grid.Column="2" Classes="compact"
-                        Content="&#x21bb;"
-                        Command="{Binding ResetCommand}"
-                        ToolTip.Tip="Reset clock" />
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
+                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                            Text="{Binding Error}"
                            Foreground="OrangeRed"
                            IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
