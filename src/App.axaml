@@ -4,6 +4,19 @@
              xmlns:local="using:Chronology"
              RequestedThemeVariant="Default">
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <Color x:Key="ErrorColor">OrangeRed</Color>
+                    <Color x:Key="GoalMetColor">LimeGreen</Color>
+                    <FontFamily x:Key="WindowFontFamily">Inter</FontFamily>
+                    <FontFamily x:Key="MonospaceFontFamily">Cascadia Code,Consolas,Menlo,monospace</FontFamily>
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
@@ -25,17 +38,11 @@
         </Style>
 
         <Style Selector="Window">
-            <Setter Property="FontFamily" Value="Inter" />
+            <Setter Property="FontFamily" Value="{DynamicResource WindowFontFamily}" />
         </Style>
 
-        <Style Selector="TextBlock.monospace">
-            <Setter Property="FontFamily" Value="Cascadia Code,Consolas,Menlo,monospace" />
-        </Style>
-        <Style Selector="TextBox.monospace">
-            <Setter Property="FontFamily" Value="Cascadia Code,Consolas,Menlo,monospace" />
-        </Style>
-        <Style Selector="SelectableTextBlock.monospace">
-            <Setter Property="FontFamily" Value="Cascadia Code,Consolas,Menlo,monospace" />
+        <Style Selector=".monospace">
+            <Setter Property="FontFamily" x:SetterTargetType="TextElement" Value="{DynamicResource MonospaceFontFamily}" />
         </Style>
     </Application.Styles>
 </Application>

@@ -209,7 +209,7 @@ public class ConfigTests : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
         var root = document.RootElement;
 
-        Assert.Equal(["reminder", "store", "version", "weeklySum"], root.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(["reminder", "store", "theme", "version", "weeklySum"], root.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(1, root.GetProperty("version").GetInt32());
 
         var store = root.GetProperty("store");
@@ -222,6 +222,174 @@ public class ConfigTests : IDisposable
         var weeklySum = root.GetProperty("weeklySum");
         Assert.Equal(["enabled", "goalHighlightShow", "goalHours", "goalShow", "weekStart"], weeklySum.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal("Sunday", weeklySum.GetProperty("weekStart").GetString());
+
+        var theme = root.GetProperty("theme");
+        Assert.Equal(["overrideFile", "variant"], theme.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal("Default", theme.GetProperty("variant").GetString());
+    }
+
+    [Fact]
+    public void Load_ConfigWithoutTheme_UsesDefaults()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(ConfigThemeVariant.Default, config.Theme.Variant);
+        Assert.Null(config.Theme.OverrideFile);
+        Assert.Null(config.Theme.Overrides);
+    }
+
+    [Fact]
+    public void Load_ThemeVariant_LoadsVariant()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "variant": "Dark" }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(ConfigThemeVariant.Dark, config.Theme.Variant);
+    }
+
+    [Fact]
+    public void Load_InvalidThemeVariant_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "variant": "Purple" }
+            }
+            """);
+
+        Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+    }
+
+    [Fact]
+    public void Load_NullTheme_UsesDefaults()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": null
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(ConfigThemeVariant.Default, config.Theme.Variant);
+        Assert.Null(config.Theme.OverrideFile);
+    }
+
+    [Fact]
+    public void Load_MissingThemeFile_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "overrideFile": "missing.json" }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("does not exist", ex.Message);
+    }
+
+    [Fact]
+    public void Load_NonJsonThemeFile_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllBytes(Path.Combine(_tempDir, "theme.txt"), [0]);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "overrideFile": "theme.txt" }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains(".json", ex.Message);
+    }
+
+    [Fact]
+    public void Load_RelativeThemeFile_ResolvesAgainstConfigDir()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var themePath = Path.Combine(_tempDir, "midnight.json");
+        File.WriteAllText(themePath, """
+            {
+              "dark": { "SystemAccentColor": "#B69CFF" }
+            }
+            """);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "overrideFile": "midnight.json" }
+            }
+            """);
+
+        var config = Config.Load(ConfigPath);
+
+        Assert.Equal(themePath, config.Theme.OverrideFile);
+        Assert.NotNull(config.Theme.Overrides);
+        Assert.Equal("#B69CFF", config.Theme.Overrides!.Dark!["SystemAccentColor"]);
+    }
+
+    [Fact]
+    public void Load_MalformedThemeFile_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "midnight.json"), "{ not json");
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "overrideFile": "midnight.json" }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("not valid JSON", ex.Message);
+    }
+
+    [Fact]
+    public void Load_ThemeFileUnknownSection_Throws()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "midnight.json"), """
+            {
+              "purple": { "SystemAccentColor": "#B69CFF" }
+            }
+            """);
+        File.WriteAllText(ConfigPath, """
+            {
+              "version": 1,
+              "store": { "type": "Plaintext" },
+              "theme": { "overrideFile": "midnight.json" }
+            }
+            """);
+
+        var ex = Assert.Throws<ConfigException>(() => Config.Load(ConfigPath));
+        Assert.Contains("unknown section", ex.Message);
     }
 
     [Fact]

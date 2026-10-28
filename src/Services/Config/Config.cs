@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Chronology.Services.Theming;
 using Chronology.Services.TimeLogStores;
 
 namespace Chronology.Services.Config;
@@ -14,7 +15,11 @@ public sealed class Config
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented        = true,
-        Converters           = { new JsonStringEnumConverter<DayOfWeek>(allowIntegerValues: false) },
+        Converters           =
+        {
+            new JsonStringEnumConverter<DayOfWeek>(allowIntegerValues: false),
+            new JsonStringEnumConverter<ConfigThemeVariant>(allowIntegerValues: false),
+        },
     };
 
     public static string FilePath => Path.Combine(Directory.GetCurrentDirectory(), FileName);
@@ -24,6 +29,7 @@ public sealed class Config
     public ITimeLogStore   Store    { get; set; } = new PlaintextTimeLogStore();
     public ConfigReminder  Reminder { get; set; } = new();
     public ConfigWeeklySum WeeklySum { get; set; } = new();
+    public ConfigTheme     Theme     { get; set; } = new();
 
     public static Config Load()
     {
@@ -38,6 +44,7 @@ public sealed class Config
         var configDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
         config.Reminder = ValidateReminder(config.Reminder, configDirectory);
         config.WeeklySum = ValidateWeeklySum(config.WeeklySum);
+        config.Theme = ValidateTheme(config.Theme, configDirectory);
         return config;
     }
 
@@ -198,6 +205,45 @@ public sealed class Config
             GoalShow          = weeklySum.GoalShow,
             WeekStart         = weeklySum.WeekStart,
         };
+    }
+
+    private static ConfigTheme ValidateTheme(ConfigTheme? theme, string configDirectory)
+    {
+        theme ??= new ConfigTheme();
+        var overrideFile = ResolveThemeFile(theme.OverrideFile, configDirectory);
+        return new ConfigTheme
+        {
+            Variant      = theme.Variant,
+            OverrideFile = overrideFile,
+            Overrides    = overrideFile is null ? null : ThemeOverrides.Load(overrideFile),
+        };
+    }
+
+    private static string? ResolveThemeFile(string? configuredPath, string configDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return null;
+        }
+        if (!string.Equals(Path.GetExtension(configuredPath), ".json", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConfigException("Invalid 'theme.overrideFile' in config. Only .json files are supported.");
+        }
+
+        string resolvedPath;
+        try
+        {
+            resolvedPath = Path.GetFullPath(configuredPath, configDirectory);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new ConfigException($"Invalid 'theme.overrideFile' in config: {ex.Message}", ex);
+        }
+        if (!File.Exists(resolvedPath))
+        {
+            throw new ConfigException($"Theme override file does not exist: {configuredPath}");
+        }
+        return resolvedPath;
     }
 
     private static void ValidateVersion(int version)

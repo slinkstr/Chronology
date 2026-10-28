@@ -102,7 +102,7 @@ public partial class MainViewModel : ViewModelBase
         InitializeFilePoll();
     }
 
-    private MainViewModel(Config config, IAlertSoundService alertSound)
+    internal MainViewModel(Config config, IAlertSoundService alertSound)
         : this(config.Store, new AppStateStore(Directory.GetCurrentDirectory()), null, () => DateTime.Now,
             alertSound, config.Reminder, config.WeeklySum)
     {
@@ -668,6 +668,15 @@ public partial class MainViewModel : ViewModelBase
         {
             RaiseError("Config error", $"Unexpected error reloading config: {ex.Message}");
             return;
+        }
+
+        try
+        {
+            (Avalonia.Application.Current as App)?.ApplyTheme(config);
+        }
+        catch (ConfigException ex)
+        {
+            RaiseError("Config error", $"Failed to apply theme: {ex.Message}");
         }
 
         _store = config.Store;

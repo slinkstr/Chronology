@@ -21,7 +21,11 @@
             <Setter Property="AccessText.ShowAccessKey" Value="True" />
         </Style>
         <Style Selector="TextBlock.goalMet">
-            <Setter Property="Foreground" Value="LimeGreen" />
+            <Setter Property="Foreground">
+                <Setter.Value>
+                    <SolidColorBrush Color="{DynamicResource GoalMetColor}" />
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Styles>
 
@@ -101,8 +105,11 @@
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                            Text="{Binding Error}"
-                           Foreground="OrangeRed"
-                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock.Foreground>
+                        <SolidColorBrush Color="{DynamicResource ErrorColor}" />
+                    </TextBlock.Foreground>
+                </TextBlock>
 
             </Grid>
 

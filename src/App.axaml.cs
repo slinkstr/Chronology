@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Chronology.Services;
 using Chronology.Services.Config;
+using Chronology.Services.Theming;
 using Chronology.ViewModels;
 using Chronology.Views;
 
@@ -21,9 +23,11 @@ public partial class App : Application
         {
             try
             {
+                var config = Config.Load();
+                ApplyTheme(config);
                 desktop.MainWindow = new MainWindow
                 {
-                    DataContext = new MainViewModel(),
+                    DataContext = new MainViewModel(config, new AlertSoundService()),
                 };
             }
             catch (ConfigException ex)
@@ -33,5 +37,10 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    internal void ApplyTheme(Config config)
+    {
+        ThemeOverrides.Apply(this, config.Theme.Variant, config.Theme.Overrides);
     }
 }

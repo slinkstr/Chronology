@@ -42,8 +42,11 @@
 
             <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
                        Text="{Binding Error}"
-                       Foreground="OrangeRed"
-                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock.Foreground>
+                    <SolidColorBrush Color="{DynamicResource ErrorColor}" />
+                </TextBlock.Foreground>
+            </TextBlock>
         </Grid>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

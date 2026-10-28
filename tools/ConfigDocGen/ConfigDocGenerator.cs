@@ -23,6 +23,8 @@ internal static class ConfigDocGenerator
         ["weeklySum.goalShow"]       = "Show the `/ goal` suffix.",
         ["store.dataDirectory"]      = "Relative paths resolve against the working directory.",
         ["store.durationFormat"]     = "Duration format in files - `9:30` vs `9.50`.",
+        ["theme.variant"]            = "Base theme variant - `Default` follows the OS.",
+        ["theme.overrideFile"]       = "JSON theme override file; `null` = none. Relative paths resolve against the working directory. See `theme/midnight.json` for the format.",
     };
 
     private static readonly HashSet<string> UsedNotes = new(StringComparer.Ordinal);
