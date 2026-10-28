@@ -10,7 +10,8 @@
         Width="420" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        ExtendClientAreaToDecorationsHint="True">
 
     <StackPanel Margin="16" Spacing="8">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto"

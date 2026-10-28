@@ -8,7 +8,8 @@
         Width="380" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        ExtendClientAreaToDecorationsHint="True">
 
     <StackPanel Margin="16" Spacing="8">
         <SelectableTextBlock x:Name="TitleText" FontWeight="Bold"

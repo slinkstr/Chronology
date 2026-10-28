@@ -7,7 +7,8 @@
         x:Class="Chronology.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Chronology"
-        Width="500" SizeToContent="Height">
+        Width="500" SizeToContent="Height"
+        ExtendClientAreaToDecorationsHint="True">
 
     <Design.DataContext>
         <vm:MainViewModel />

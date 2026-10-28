@@ -8,7 +8,8 @@
         Width="420" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        ExtendClientAreaToDecorationsHint="True">
 
     <StackPanel Margin="16" Spacing="12">
         <TextBox x:Name="MessageText"

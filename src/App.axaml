@@ -7,7 +7,20 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Chronology/Styles/DrawnDecorations.axaml" />
                 <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Light">
+                            <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="#E6E6E6" />
+                            <SolidColorBrush x:Key="CaptionButtonBackground" Color="#D4D4D4" />
+                            <SolidColorBrush x:Key="CaptionButtonBorderBrush" Color="#B8B8B8" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Dark">
+                            <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="#202020" />
+                            <SolidColorBrush x:Key="CaptionButtonBackground" Color="#3F3F3F" />
+                            <SolidColorBrush x:Key="CaptionButtonBorderBrush" Color="#5A5A5A" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
                     <Color x:Key="ErrorColor">OrangeRed</Color>
                     <Color x:Key="GoalMetColor">LimeGreen</Color>
                     <FontFamily x:Key="WindowFontFamily">Inter</FontFamily>
@@ -39,6 +52,12 @@
 
         <Style Selector="Window">
             <Setter Property="FontFamily" Value="{DynamicResource WindowFontFamily}" />
+            <Setter Property="Padding" Value="{Binding $self.WindowDecorationMargin}" />
+        </Style>
+
+        <!-- In extended-client mode the window background must not paint over the drawn title bar -->
+        <Style Selector="Window /template/ Panel > Border:nth-child(2)">
+            <Setter Property="Margin" Value="{Binding $parent[Window].WindowDecorationMargin}" />
         </Style>
 
         <Style Selector=".monospace">

@@ -21,7 +21,13 @@
     "CalendarViewForeground"                      : "#E9E4F5",
     "CalendarViewBorderBrush"                     : "#3B2B58",
 
+    "TitleBarBackgroundBrush"                     : "#0F0A1A",
+    "CaptionButtonBackground"                     : "#3B2B58",
+    "CaptionButtonBorderBrush"                    : "#584377",
+    "CaptionButtonForeground"                     : "#E9E4F5",
+
     "SystemControlForegroundBaseHighBrush"        : "#E9E4F5",
+    "SystemControlForegroundBaseMediumBrush"      : "#A79BC2",
     "SystemControlForegroundBaseMediumLowBrush"   : "#6F6390",
     "SystemControlDisabledBaseMediumLowBrush"     : "#6F6390",
     "SystemControlErrorTextForegroundBrush"       : "#FF7A93",
