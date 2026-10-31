@@ -1,0 +1,58 @@
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64,   archive: zip    }
+          - { os: ubuntu-latest,  rid: linux-x64, archive: tar.gz }
+          - { os: macos-latest,   rid: osx-arm64, archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - run: >
+          dotnet publish src/Chronology.csproj -c Release -r ${{ matrix.rid }}
+          --no-self-contained -p:PublishSingleFile=true -o publish
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item publish/libSkiaSharp.pdb, publish/libHarfBuzzSharp.pdb -ErrorAction SilentlyContinue
+          Compress-Archive -Path publish/* -DestinationPath chronology-${{ matrix.rid }}.zip
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: tar -czf chronology-${{ matrix.rid }}.tar.gz -C publish .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chronology-${{ matrix.rid }}
+          path: chronology-${{ matrix.rid }}.${{ matrix.archive }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: gh release create ${{ github.ref_name }} artifacts/chronology-*/* --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
