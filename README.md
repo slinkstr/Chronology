@@ -1,6 +1,8 @@
 # Chronology
 
-Desktop timekeeping app.
+Desktop timekeeping app written with dotnet and Avalonia UI.
+
+[Requires the .NET 8 runtime.](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime)
 
 ![Chronology](asset/image/screenshot.png)
 
