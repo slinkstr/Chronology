@@ -17,21 +17,33 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        SetUpClassicDesktop();
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private void SetUpClassicDesktop()
+    {
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
-            try
-            {
-                desktop.MainWindow = new MainWindow
-                {
-                    DataContext = new MainViewModel(),
-                };
-            }
-            catch (ConfigException ex)
-            {
-                desktop.MainWindow = new ErrorDialog($"Failed to load config at {Config.FilePath}:\n{ex.Message}");
-            }
+            return;
         }
 
-        base.OnFrameworkInitializationCompleted();
+        if (Program.SecondInstance)
+        {
+            desktop.MainWindow = new ErrorDialog("Chronology is already running for this directory.");
+            return;
+        }
+
+        try
+        {
+            desktop.MainWindow = new MainWindow
+            {
+                DataContext = new MainViewModel(),
+            };
+        }
+        catch (ConfigException ex)
+        {
+            desktop.MainWindow = new ErrorDialog($"Failed to load config at {Config.FilePath}:\n{ex.Message}");
+        }
     }
 }
